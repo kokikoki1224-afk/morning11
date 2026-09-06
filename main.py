@@ -1,10 +1,11 @@
 """日本株モーニング11 自動化 - エントリポイント。
 
-現時点のスコープ（STEP2）: Nasdaq / SOX / 米10年債利回り / USD/JPY / KOSPI の
-自動取得と動作確認のみ。スコア計算・AI分析・HTML生成は未実装（後続ステップ）。
+現時点のスコープ（STEP2+STEP3）: Nasdaq / SOX / 米10年債利回り / USD/JPY / KOSPI の
+自動取得、および ±0.2%ルール・bp閾値ルールによるスコア計算まで。
+AI分析・HTML生成・GitHub Actions/Pagesは未実装（後続ステップ）。
 
 使い方:
-    python main.py --test              # 5指標の取得を試し、ログのみ出力
+    python main.py --test              # 5指標の取得＋スコア計算を行い、結果をログ出力
     python main.py --test --date ...   # 過去日付での再実行は未実装（後続ステップで対応）
 """
 
@@ -17,6 +18,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 
+from analysis.score import compute_score
 from data import market
 
 
@@ -45,7 +47,8 @@ def main() -> int:
         print("[ERROR] 現時点では --test のみ対応しています（STEP2）", file=sys.stderr)
         return 1
 
-    results = market.fetch_all()
+    settings = market.load_settings()
+    results = market.fetch_all(settings)
     ok_count = 0
     for key in ("nasdaq", "sox", "us10y", "usdjpy", "kospi"):
         result = results.get(key)
@@ -57,6 +60,15 @@ def main() -> int:
             ok_count += 1
 
     print(f"--- {ok_count}/{len(results)} 指標を取得できました ---")
+
+    score_out = compute_score(results, settings)
+    print(f"[OK] Score: {score_out['verdict_label']}")
+    for key, m in score_out["metrics"].items():
+        if m["status"] == "ok":
+            print(f"  {key}: score={m['score']:+d}")
+        else:
+            print(f"  {key}: unavailable ({m['error']})")
+
     return 0
 
 

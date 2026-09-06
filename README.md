@@ -1,6 +1,25 @@
-# 日本株モーニング11 自動化（STEP2まで）
+# 日本株モーニング11 自動化（STEP3まで）
 
-「日本株モーニング11」（claude.aiのartifactで手動運用中のレポート）と同じスコアリング思想・5指標構成を、GitHub Actionsで毎朝自動実行するための土台。**現時点ではSTEP2（5指標の自動取得、うちドル円は基準時刻を再検証して修正済み）までを実装済み**。スコア計算・AI分析・HTML生成・GitHub Actions/Pagesは未実装（後続ステップ）。
+「日本株モーニング11」（claude.aiのartifactで手動運用中のレポート）と同じスコアリング思想・5指標構成を、GitHub Actionsで毎朝自動実行するための土台。**現時点ではSTEP2（5指標の自動取得、うちドル円はNY17:00基準に確定）＋STEP3（±0.2%ルール・bp閾値によるスコア計算）までを実装済み**。AI分析・HTML生成・GitHub Actions/Pagesは未実装（後続ステップ）。
+
+## STEP3で確定したUSD/JPYの正式基準
+
+**yfinance `JPY=X` の日足は使用しない。** 1時間足からNY17:00（米東部時間）に最も近いバーを取得し、その始値をその日の代表値とする。前営業日の同じNY17:00スナップショットとの差分から前日比を計算する。この方式を「日本株モーニング11」のUSD/JPYの正式基準として採用する（実装: `data/market.py` の `_yfinance_ny17_snapshot`、設定: `config/settings.json` の `sources.usdjpy.primary.provider = "yfinance_ny17"`）。下記「USD/JPYの基準時刻問題」に記載の限界事項は解消されたわけではなく、引き続き有効な既知の限界として残す。
+
+## スコア計算（STEP3）
+
+対象は Nasdaq / SOX / 米10年債利回り / USD/JPY / KOSPI の5指標（実装: `analysis/score.py`）。データ取得（`data/market.py`）とスコア判定（`analysis/score.py`）は責務を分離しており、スコア計算はネットワークアクセスを一切行わない。
+
+- ±0.2%ルール（Nasdaq/SOX/USD-JPY/KOSPI）：`change_percent >= +0.2` → `+1`、`<= -0.2` → `-1`、それ以外 → `0`
+- 米10年債はbp閾値・符号反転：`change_bp <= -3` → `+1`（金利低下は好材料）、`>= +3` → `-1`、それ以外 → `0`
+- 欠損指標（`status != "OK"`）は**推測値を入れず、スコアに加算しない**。`available`（取得できた指標数）と`total`（5）を必ず保持し、一部欠損時は`provisional=true`として「4/5指標取得・暫定スコア +3」のように表示する
+- 総合判定：`+3〜+5`→追い風、`-2〜+2`→中立・やや方向感なし、`-5〜-3`→逆風
+
+テスト（`tests/test_score.py` `tests/test_market.py`、`python -m pytest` で27件全て合格確認済み）：
+- ±0.2%ルールの境界値（+0.3/+0.2/+0.19/0/-0.19/-0.2/-0.3 → 1/1/0/0/0/-1/-1）
+- 米10年債bp閾値の境界値（-4/-3/-2/0/+2/+3/+4bp → 1/1/0/0/0/-1/-1）
+- 欠損指標が0点ではなく「加算されない」ことの確認、`available/total`の整合性
+- USD/JPYが日足関数を呼ばずNY17:00スナップショット関数を呼んでいることのモック検証
 
 既存のclaude.ai artifact・Claudeスケジュールタスク（`nihonkabu-morning11`）とは完全に独立しており、それらは変更していない。
 
@@ -47,28 +66,33 @@ python -m venv .venv
 source .venv/Scripts/activate   # Windows Git Bash
 pip install -r requirements.txt
 export FRED_API_KEY=xxxxx        # https://fredaccount.stlouisfed.org/apikeys で無料発行
-python main.py --test
+python main.py --test            # データ取得＋スコア計算をログ出力
+python -m pytest                 # STEP3のテスト（27件）
 ```
 
 ## ファイル構成（現状）
 ```
 morning11/
-├── main.py              # --test のみ対応（STEP2）
+├── main.py              # --test：データ取得＋スコア計算をログ出力（STEP2+3）
 ├── data/
-│   └── market.py         # Nasdaq/SOX/US10Y/USDJPY/KOSPIの取得
+│   └── market.py         # Nasdaq/SOX/US10Y/USDJPY/KOSPIの取得（責務：取得のみ）
+├── analysis/
+│   └── score.py           # ±0.2%ルール・bp閾値によるスコア計算（責務：判定のみ、ネットワーク非依存）
+├── tests/
+│   ├── test_market.py      # USD/JPYがNY17:00基準になっていることの確認
+│   └── test_score.py        # スコア境界値・欠損時の挙動の確認
 ├── config/
 │   └── settings.json      # データソース定義・スコア閾値（score_threshold_percent, bond_yield_threshold_bp）
 ├── requirements.txt
 └── README.md
 ```
-`analysis/` `generator/` `templates/` `.github/workflows/` は後続ステップで実装予定のため現状空。
+`generator/` `templates/` `.github/workflows/` は後続ステップで実装予定のため現状空。
 
 ## GitHub Secretsに保存する予定の値（コードには絶対に書かない）
 - `ANTHROPIC_API_KEY`（AI分析、STEP8で使用）
-- `FRED_API_KEY`（米10年債データ、STEP2/3で使用）
+- `FRED_API_KEY`（米10年債データ、STEP2/3で使用。未設定でもyfinanceにフォールバックして動作する）
 
-## 未実装（後続ステップ・STEP3のスコア計算はUSD/JPYの基準確定待ちで保留中）
-- STEP3: スコア計算（±0.2%ルール・bp判定・合計・総合判定）
+## 未実装（後続ステップ）
 - STEP4: 既存HTMLのプレースホルダ化・自動埋め込み
 - STEP5: 日本市場（日経225先物・TOPIX・日本10年債）追加、NKD=Fの基準時刻検証
 - STEP6以降: イベントカレンダー・ニュース・AI分析・GitHub Actions/Pages
