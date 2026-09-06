@@ -1,11 +1,12 @@
 """日本株モーニング11 自動化 - エントリポイント。
 
-現時点のスコープ（STEP2+STEP3+STEP4+STEP5+STEP6）:
+現時点のスコープ（STEP2+STEP3+STEP4+STEP5+STEP6+STEP7）:
 - 海外5指標（Nasdaq/SOX/米10年債/USD-JPY/KOSPI）の自動取得＋±0.2%ルール・bp閾値によるスコア計算
 - 日本市場3指標（日経225先物/TOPIX連動ETF/日本10年債）の自動取得（総合スコアには含めない参考情報）
 - 今週の重要イベント（米国主要指標はFRED、FOMC/日銀等は静的カレンダー）の取得・JST変換・期間フィルタ
-- 既存デザインのHTMLへの埋め込み
-AI分析・ニュース取得・GitHub Actions/Pagesは未実装（後続ステップ）。
+- ニュース候補の取得・直近24時間フィルタ・重複除去・ルールベースのテーマ分類（HTML表示・AI解釈はまだ行わない）
+- 既存デザインのHTMLへの埋め込み（ニュースはSTEP7時点ではHTMLに表示しない）
+AI分析・GitHub Actions/Pagesは未実装（後続ステップ）。
 
 使い方:
     python main.py --test              # 5指標の取得＋スコア計算を行い、結果をログ出力
@@ -25,6 +26,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 from analysis.score import compute_score
 from data import events as events_module
 from data import market
+from data import news as news_module
 from generator.html import generate_report
 
 
@@ -87,6 +89,19 @@ def fetch_events(settings: dict) -> dict:
     return events_out
 
 
+def fetch_news(settings: dict) -> dict:
+    print("[ニュース候補（参考情報・HTML表示はSTEP7ではまだ行わない）]")
+    news_out = news_module.fetch_news(settings)
+    print(f"--- fetched_at: {news_out['fetched_at']} ---")
+    for n in news_out["news"]:
+        print(f"[OK] {n.published_at} [{n.category}] {n.source}: {n.title}")
+    for err in news_out["errors"]:
+        print(f"[ERROR] {err}", file=sys.stderr)
+    if not news_out["news"] and not news_out["errors"]:
+        print("(直近24時間以内に該当するニュースはありませんでした)")
+    return news_out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="日本株モーニング11 自動化")
     parser.add_argument("--test", action="store_true", help="データ取得＋スコア計算を試し、結果をログ出力する")
@@ -104,6 +119,7 @@ def main() -> int:
 
     results, score_out, settings = fetch_and_score()
     events_out = fetch_events(settings)
+    fetch_news(settings)  # STEP7: 取得・分類のみ。HTMLへはまだ渡さない
 
     if args.generate:
         path = generate_report(results, score_out, settings, events_out)

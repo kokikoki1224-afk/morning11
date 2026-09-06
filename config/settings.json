@@ -74,5 +74,25 @@
       "米小売売上高": {"release_id": 9, "country": "US", "importance": "medium", "release_time_et": "08:30"},
       "米PCE": {"release_id": 54, "country": "US", "importance": "high", "release_time_et": "08:30"}
     }
+  },
+  "news": {
+    "max_items_per_keyword": 10,
+    "max_total_items": 30,
+    "recent_hours": 24,
+    "dedup_similarity_threshold": 0.75,
+    "_note": "STEP7: Google News RSS(無料・キー不要・非公式仕様)をキーワードごとに取得。本文は保存せずtitle/url/published_at/source/categoryのみ保持。テーマ分類はキーワード→カテゴリのルールベース(CATEGORY_MAP)。AI APIはSTEP7では未使用。HTML表示はSTEP7では行わない",
+    "keywords": [
+      "NVIDIA",
+      "AI",
+      "半導体",
+      "日銀",
+      "為替",
+      "金利",
+      "米金融政策",
+      "日本株",
+      "中国",
+      "原油・エネルギー",
+      "防衛"
+    ]
   }
 }

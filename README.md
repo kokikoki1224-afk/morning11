@@ -1,6 +1,92 @@
-# 日本株モーニング11 自動化（STEP6まで）
+# 日本株モーニング11 自動化（STEP7まで）
 
-「日本株モーニング11」（claude.aiのartifactで手動運用中のレポート）と同じスコアリング思想・5指標構成を、GitHub Actionsで毎朝自動実行するための土台。**現時点ではSTEP2（海外5指標の自動取得）＋STEP3（±0.2%ルール・bp閾値によるスコア計算）＋STEP4（既存デザインのHTMLテンプレートへの自動埋め込み）＋STEP5（日本市場3指標の追加、参考情報・スコア対象外）＋STEP6（今週の重要イベントの自動取得、参考情報・スコア対象外）までを実装済み**。AI分析・ニュース取得・GitHub Actions/Pagesは未実装（後続ステップ）。
+「日本株モーニング11」（claude.aiのartifactで手動運用中のレポート）と同じスコアリング思想・5指標構成を、GitHub Actionsで毎朝自動実行するための土台。**現時点ではSTEP2（海外5指標の自動取得）＋STEP3（±0.2%ルール・bp閾値によるスコア計算）＋STEP4（既存デザインのHTMLテンプレートへの自動埋め込み）＋STEP5（日本市場3指標の追加、参考情報・スコア対象外）＋STEP6（今週の重要イベントの自動取得、参考情報・スコア対象外）＋STEP7（ニュース候補の取得・重複除去・テーマ分類、HTML表示はまだ行わない）までを実装済み**。AI分析・GitHub Actions/Pagesは未実装（後続ステップ）。
+
+## STEP7: ニュース候補の取得・重複除去・テーマ分類（HTML表示なし）
+
+**今回はAI・HTMLのどちらも変更しない。** `data/news.py` を新規追加し、「RSS取得 → 直近24時間フィルタ → 重複除去 → テーマ分類（ルールベース） → データ構造化」までを機械的に実装した。`templates/morning11.html` と `generator/html.py` はSTEP7では一切変更していない（ユーザー指示により、HTML表示はSTEP8以降でAI分析と合わせて実装する）。STEP7ではAI APIも一切使用していない。
+
+### 採用したニュースソース
+
+| 項目 | 内容 |
+|---|---|
+| ソース | **Google News RSS**（`https://news.google.com/rss/search?q=<キーワード>&hl=ja&gl=JP&ceid=JP:ja`） |
+| 無料/有料 | 無料 |
+| APIキー | 不要 |
+| 利用条件 | 非公式・無保証の仕様（Google側のRSSフィードの構造・提供が予告なく変わる可能性がある。取得したXMLのcopyrightタグにも「個人の非商用フィードリーダー用途」である旨の記載あり） |
+| URLの性質 | `<link>`はGoogleの中継URL（`news.google.com/rss/articles/...`）であり、掲載元サイトの直接URLではない（クリックすると掲載元へリダイレクトされる） |
+
+STEP2の計画段階でも候補に挙げていた案で、キーごとの登録が不要な点・日本語検索に対応している点から採用した。無料枠の対象外である可能性が高いと判断したFinnhub Economic Calendar等（STEP6のREADMEに記録済み）とは別の情報源。
+
+### 利用するテーマ（キーワード→カテゴリのルールベース分類）
+
+`config/settings.json` の `news.keywords` と `data/news.py` の `CATEGORY_MAP` で対応づけている。
+
+| 検索キーワード | category |
+|---|---|
+| NVIDIA | `nvidia` |
+| AI | `ai` |
+| 半導体 | `semiconductor` |
+| 日銀 | `boj` |
+| 為替 | `fx` |
+| 金利 | `rates` |
+| 米金融政策 | `us_market` |
+| 日本株 | `japan_market` |
+| 中国 | `china` |
+| 原油・エネルギー | `energy` |
+| 防衛 | `defense` |
+
+未知のキーワードは `other` にフォールバックする（`VALID_CATEGORIES`に含む）。**この分類は意味解析ではなく、どのキーワードでヒットしたかをそのままカテゴリに写像するルールベース処理**であり、AIは一切介在しない（STEP8以降でAIによる意味的な解釈・要約を追加する前提）。
+
+### 取得範囲・データ構造
+
+- **直近24時間**（`news.recent_hours`、既定24）を基準とする。フィルタは記事自身の**公開日時（published_at）**に対して行い、取得を実行した時刻（fetched_at）と混同しない（`filter_recent()`で分離、テストでも確認）。
+- 本文は取得・保存しない。保持するのは以下のみ：
+
+```python
+{
+    "title": "...",
+    "url": "...",
+    "published_at": "2026-09-06T21:40:51+09:00",  # JST ISO8601
+    "source": "...",
+    "category": "ai",
+    "matched_keyword": "AI",      # 追跡用の追加情報
+    "feed": "google_news_rss",     # 追跡用の追加情報
+}
+```
+
+- `fetch_news()`の戻り値は `{"news": [NewsItem...], "fetched_at": ISO文字列, "errors": [...]}`。
+
+### 重複除去の方法（3段階、先勝ち）
+
+1. **URL完全一致**
+2. **正規化URL一致**（クエリ文字列・末尾スラッシュを除去して比較。同一記事がクエリパラメータ違いで複数キーワードにヒットするケースに対応）
+3. **タイトルの類似度**（文字bigram＝2文字の滑り窓集合どうしの**重なり係数**（Overlap coefficient = |A∩B| / min(|A|,|B|)）で判定。日本語は分かち書きされないため単語トークン化ではなく文字bigramを採用。Jaccardではなく重なり係数にしているのは、「見出しの一部を包含する関係」（例：「半導体メモリー急伸」と「半導体株が上昇 半導体メモリー急伸で連想買い」）でも高スコアになるようにするため）
+
+閾値（`news.dedup_similarity_threshold`、既定0.75）は、実際に無関係な記事同士を誤って統合しないことをテスト（`test_dedupe_does_not_over_merge_distinct_articles`）で確認した上で設定している。
+
+### データ取得失敗時の挙動
+
+- キーワードごとに独立して取得するため、**1つのキーワードのRSS取得が失敗しても他のキーワードの結果はそのまま返す**（エラーは`errors`に追記）
+- 取得できなかった情報を推測で埋めることはしない（0件・エラーいずれの場合も架空のニュースは生成しない）
+- 実行時のログ出力は `main.py` の `--test`/`--generate` に統合済み（`[ニュース候補（参考情報・HTML表示はSTEP7ではまだ行わない）]`）
+
+### テスト（`tests/test_news.py`、`python -m pytest` で81件全て合格確認済み）
+- RSSのパース（タイトルからのソース名重複サフィックス除去、URL、pubDate、ソース名の抽出）
+- `max_items`による件数制限
+- ネットワーク失敗時に空リスト＋エラーメッセージを返し、架空データを作らないこと
+- pubDateのJST ISO8601変換、パース不能な値でNoneを返すこと
+- 24時間フィルタ（境界値ちょうど24時間・25時間前・未来日時・published_at不明のケース）
+- ルールベースのテーマ分類（既知キーワード全件・未知キーワードのotherフォールバック）
+- 重複除去（URL完全一致・正規化URL一致・類似タイトルの統合・無関係記事の非統合）
+- `fetch_news()`の統合動作（0件、一部キーワード失敗時の挙動を含む）
+
+実際の実行結果（本日時点、`FRED_API_KEY`未設定でも本ニュース取得は無関係に動作）：30件取得・エラー0件・カテゴリ内訳は`ai`8件、`japan_market`5件、`china`/`semiconductor`/`defense`各3件、`boj`3件、`rates`/`fx`各2件、`nvidia`1件。
+
+### 今後の改善候補
+- STEP8でHTML表示（既存デザインに新規セクションを追加するか、既存の`.note`等のコンポーネントを流用するかは要確認）とAIによる意味解釈（要約・日本株への影響分析）を追加する
+- タイトル類似度の重複除去は文字bigramによる簡易手法。将来的に誤統合・見逃しが目立つ場合は閾値の再調整、またはより高度な手法への切り替えを検討
+- Google News RSSは非公式仕様のため、将来的にフィードの構造が変わった場合は`_parse_rss_items()`の修正が必要になる可能性がある
 
 ## STEP6: 今週の重要イベントカレンダーの自動化
 
@@ -199,32 +285,34 @@ python -m venv .venv
 source .venv/Scripts/activate   # Windows Git Bash
 pip install -r requirements.txt
 export FRED_API_KEY=xxxxx        # https://fredaccount.stlouisfed.org/apikeys で無料発行（米10年債・米国イベントカレンダー両方で共用）
-python main.py --test            # データ取得＋スコア計算＋イベント取得をログ出力
-python main.py --generate        # 上記に加え output/ にHTMLを生成
-python -m pytest                 # STEP2〜6のテスト（65件）
+python main.py --test            # データ取得＋スコア計算＋イベント取得＋ニュース取得をログ出力
+python main.py --generate        # 上記に加え output/ にHTMLを生成（ニュースはまだHTMLに含まれない）
+python -m pytest                 # STEP2〜7のテスト（81件）
 ```
 
 ## ファイル構成（現状）
 ```
 morning11/
-├── main.py              # --test / --generate（STEP2+3+4+5+6）
+├── main.py              # --test / --generate（STEP2+3+4+5+6+7）
 ├── data/
 │   ├── market.py         # 海外5指標＋日本3指標の取得（責務：取得のみ）。overseas/japanを分離して返す
-│   └── events.py          # 今週の重要イベントの取得（FRED公式API＋静的カレンダー）・JST変換・期間フィルタ
+│   ├── events.py          # 今週の重要イベントの取得（FRED公式API＋静的カレンダー）・JST変換・期間フィルタ
+│   └── news.py             # ニュース候補の取得（Google News RSS）・24時間フィルタ・重複除去・テーマ分類
 ├── analysis/
 │   └── score.py           # ±0.2%ルール・bp閾値によるスコア計算（責務：判定のみ、ネットワーク非依存、overseas側のみ受け取る）
 ├── generator/
-│   └── html.py             # templates/morning11.html に結果を埋め込みoutput/へ出力（責務：HTML生成のみ、ネットワーク非依存）
+│   └── html.py             # templates/morning11.html に結果を埋め込みoutput/へ出力（責務：HTML生成のみ、ネットワーク非依存）。STEP7のニュースはまだ扱わない
 ├── templates/
-│   └── morning11.html       # 既存artifactのCSS・構造をそのまま持ち込み、日次変動部分だけプレースホルダー化
+│   └── morning11.html       # 既存artifactのCSS・構造をそのまま持ち込み、日次変動部分だけプレースホルダー化。STEP7では未変更
 ├── output/                   # generate_reportの出力（.gitignoreでコミット対象外）
 ├── tests/
 │   ├── test_market.py      # USD/JPY・日経225先物がスナップショット基準であること、MOF CSVパースの確認
 │   ├── test_score.py        # スコア境界値・欠損時の挙動の確認
 │   ├── test_events.py        # JST変換・日付またぎ・期間/重要度フィルタ・取得失敗時の挙動の確認
+│   ├── test_news.py           # RSSパース・24時間フィルタ・重複除去(URL/正規化URL/類似タイトル)・テーマ分類の確認
 │   └── test_generator.py      # HTML生成・日付/8指標/イベント表示/欠損表示/未実装表示/整形/スコア非影響の確認
 ├── config/
-│   ├── settings.json      # データソース定義（overseas/japan分離）・スコア閾値・イベント設定（fred_releases等）
+│   ├── settings.json      # データソース定義（overseas/japan分離）・スコア閾値・イベント設定・ニュース設定（keywords等）
 │   └── events_calendar.json # FOMC・日銀等の手動メンテナンス静的カレンダー（STEP6参照）
 ├── requirements.txt
 └── README.md
@@ -234,9 +322,8 @@ morning11/
 ## GitHub Secretsに保存する予定の値（コードには絶対に書かない）
 - `ANTHROPIC_API_KEY`（AI分析、STEP8で使用）
 - `FRED_API_KEY`（米10年債データ・米国イベントカレンダーの両方で使用。未設定でも米10年債はyfinanceにフォールバックし、イベント側は「取得不可」と明示した上で他のイベントソースは動作を継続する）
-- 日本市場3指標（NKD=F・1306.T・財務省CSV）・日本側イベントカレンダーは追加のAPIキー不要
+- 日本市場3指標（NKD=F・1306.T・財務省CSV）・日本側イベントカレンダー・ニュース取得（Google News RSS）は追加のAPIキー不要
 
 ## 未実装（後続ステップ）
-- STEP7: ニュース取得
-- STEP8: AI分析（見出し・組み合わせ分析・セクター分析・リスク）の実装
+- STEP8: ニュース・イベントのHTML表示、AI分析（見出し・組み合わせ分析・セクター分析・リスク）の実装
 - STEP9: GitHub Actionsでの毎朝自動実行・GitHub Pages公開
