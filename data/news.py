@@ -226,6 +226,42 @@ def dedupe(items: list[NewsItem], similarity_threshold: float = 0.75) -> list[Ne
     return kept
 
 
+def select_for_display(
+    news_items: list[NewsItem],
+    category_priority: list[str],
+    max_per_category: int = 3,
+    max_total: int = 10,
+) -> list[NewsItem]:
+    """STEP8-A: 「注目ニュース」欄に載せる項目を機械的に選定する（表示選定のみ、データは削除しない）。
+
+    - category_priority に列挙された順にカテゴリを処理し、各カテゴリ内は published_at の
+      新しい順に最大 max_per_category 件を採用する。
+    - 全体の採用件数が max_total に達した時点で打ち切る（優先度の低いカテゴリほど
+      採用件数が減る、または0件になりうる）。
+    - category_priority に含まれないカテゴリ（例: us_market, other）は、この選定結果には
+      含めない。ただし呼び出し元が渡す news_items 自体は変更しないため、他の用途
+      （将来のAI分析等）では引き続き全カテゴリを参照できる。
+    - タイトルの内容から重要度を推測するようなことはしない。あくまで
+      「カテゴリ優先順位」と「新しさ」だけの機械的な選定。
+    """
+    by_category: dict[str, list[NewsItem]] = {}
+    for item in news_items:
+        by_category.setdefault(item.category, []).append(item)
+    for items in by_category.values():
+        items.sort(key=lambda n: n.published_at or "", reverse=True)
+
+    selected: list[NewsItem] = []
+    remaining = max_total
+    for category in category_priority:
+        if remaining <= 0:
+            break
+        take = by_category.get(category, [])[: min(max_per_category, remaining)]
+        selected.extend(take)
+        remaining -= len(take)
+
+    return selected
+
+
 def fetch_news(settings: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
     """設定のキーワードごとにRSSを取得し、24時間フィルタ・重複除去・分類まで行う。
 

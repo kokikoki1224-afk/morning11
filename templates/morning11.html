@@ -486,6 +486,13 @@ footer{
   </section>
 
   <section>
+    <h2>今週の重要イベント <span class="tag">{{EVENTS_TAG}}</span></h2>
+    <div class="tl">
+{{EVENTS_BLOCK}}
+    </div>
+  </section>
+
+  <section>
     <h2>組み合わせの読み</h2>
     <div class="read">
       <div class="pattern">{{PATTERN_LINE}}</div>
@@ -494,9 +501,16 @@ footer{
   </section>
 
   <section>
-    <h2>今週の重要イベント <span class="tag">{{EVENTS_TAG}}</span></h2>
-    <div class="tl">
-{{EVENTS_BLOCK}}
+    <div class="note">
+      <h3>注目ニュース <span style="font-weight:400;color:var(--muted);font-size:11px;letter-spacing:.08em;margin-left:6px">{{NEWS_TAG}}</span></h3>
+{{NEWS_BLOCK}}
+    </div>
+  </section>
+
+  <section>
+    <div class="note">
+      <h3>AIによる総合分析</h3>
+      <p style="margin:0">{{AI_ANALYSIS_BLOCK}}</p>
     </div>
   </section>
 

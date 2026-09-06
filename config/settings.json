@@ -93,6 +93,21 @@
       "中国",
       "原油・エネルギー",
       "防衛"
-    ]
+    ],
+    "max_display_total": 10,
+    "max_per_category_display": 3,
+    "category_priority": [
+      "nvidia",
+      "semiconductor",
+      "ai",
+      "boj",
+      "fx",
+      "rates",
+      "japan_market",
+      "china",
+      "energy",
+      "defense"
+    ],
+    "_note_display": "STEP8-A: 「注目ニュース」欄の表示選定はcategory_priority順・カテゴリごとmax_per_category_display件・合計max_display_total件まで。us_market/otherはcategory_priorityに含めず表示対象外だが、data/news.pyの取得・分類データ自体からは削除しない(STEP8-B以降でAIが全カテゴリを参照できるようにするため)"
   }
 }

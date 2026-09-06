@@ -9,9 +9,21 @@ from zoneinfo import ZoneInfo
 from analysis.score import compute_score
 from data.events import EventRecord
 from data.market import MetricResult
+from data.news import NewsItem
 from generator.html import generate_report
 
-SETTINGS = {"score_threshold_percent": 0.2, "bond_yield_threshold_bp": 3}
+SETTINGS = {
+    "score_threshold_percent": 0.2,
+    "bond_yield_threshold_bp": 3,
+    "news": {
+        "category_priority": [
+            "nvidia", "semiconductor", "ai", "boj", "fx", "rates",
+            "japan_market", "china", "energy", "defense",
+        ],
+        "max_per_category_display": 3,
+        "max_display_total": 10,
+    },
+}
 JST = ZoneInfo("Asia/Tokyo")
 
 
@@ -22,6 +34,10 @@ def _empty_events_out(now: datetime) -> dict:
         "window_start": now.date().isoformat(),
         "window_end": (now.date() + timedelta(days=7)).isoformat(),
     }
+
+
+def _empty_news_out() -> dict:
+    return {"news": [], "errors": [], "fetched_at": None}
 
 
 def _ok(key, label, *, change_percent=None, change_bp=None, value=100.0, timestamp="2026-09-04", source=None):
@@ -69,11 +85,14 @@ def _all_ok_results():
     return {"overseas": _all_ok_overseas(), "japan": _all_ok_japan()}
 
 
-def _generate(tmp_path, results, now=None, events_out=None):
+def _generate(tmp_path, results, now=None, events_out=None, news_out=None):
     now = now or datetime(2026, 9, 4, 7, 0, tzinfo=JST)  # 平日固定（テストの再現性のため）
     events_out = events_out if events_out is not None else _empty_events_out(now)
+    news_out = news_out if news_out is not None else _empty_news_out()
     score_out = compute_score(results["overseas"], SETTINGS)
-    path = generate_report(results, score_out, SETTINGS, events_out, output_dir=tmp_path, now=now)
+    path = generate_report(
+        results, score_out, SETTINGS, events_out, news_out, output_dir=tmp_path, now=now
+    )
     return path, score_out
 
 
@@ -267,3 +286,105 @@ def test_events_do_not_affect_overseas_score(tmp_path):
     _, score_out_with_events = _generate(tmp_path, results, now=now, events_out=_events_out_with(now, events))
     _, score_out_without_events = _generate(tmp_path, results, now=now, events_out=_events_out_with(now, []))
     assert score_out_with_events == score_out_without_events
+
+
+# --- STEP8-A: 注目ニュース ---------------------------------------------------
+
+def _news_item(category, title, hours_ago, now, url=None, source="テスト通信"):
+    published = now - timedelta(hours=hours_ago)
+    return NewsItem(
+        title=title,
+        url=url or f"https://example.com/{category}-{hours_ago}",
+        published_at=published.isoformat(),
+        source=source,
+        category=category,
+        matched_keyword="test",
+    )
+
+
+def test_news_appears_grouped_by_category_with_relative_time(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    news = [
+        _news_item("nvidia", "NVIDIAが新製品発表", 2, now),
+        _news_item("boj", "日銀が金融政策を維持", 5, now),
+    ]
+    news_out = {"news": news, "errors": [], "fetched_at": now.isoformat()}
+    path, _ = _generate(tmp_path, _all_ok_results(), now=now, news_out=news_out)
+    html = path.read_text(encoding="utf-8")
+    assert "注目ニュース" in html
+    assert "NVIDIA関連" in html and "日銀" in html
+    assert "NVIDIAが新製品発表" in html
+    assert "2時間前" in html
+    assert "5時間前" in html
+    assert "テスト通信" in html
+
+
+def test_news_caps_at_three_per_category_and_ten_total(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    news = [_news_item("nvidia", f"NVIDIAニュース{i}", i, now) for i in range(1, 6)]  # 5件中3件だけ採用されるはず
+    news_out = {"news": news, "errors": [], "fetched_at": now.isoformat()}
+    path, _ = _generate(tmp_path, _all_ok_results(), now=now, news_out=news_out)
+    html = path.read_text(encoding="utf-8")
+    assert html.count("NVIDIAニュース") == 3
+    # 新しい順(1,2,3時間前)が残り、古い(4,5時間前)は落ちるはず
+    assert "NVIDIAニュース1" in html
+    assert "NVIDIAニュース3" in html
+    assert "NVIDIAニュース4" not in html
+    assert "NVIDIAニュース5" not in html
+
+
+def test_news_excludes_categories_not_in_priority_list(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    news = [
+        _news_item("us_market", "米金融政策の話題", 1, now),
+        _news_item("other", "その他の話題", 1, now),
+        _news_item("nvidia", "NVIDIAの話題", 1, now),
+    ]
+    news_out = {"news": news, "errors": [], "fetched_at": now.isoformat()}
+    path, _ = _generate(tmp_path, _all_ok_results(), now=now, news_out=news_out)
+    html = path.read_text(encoding="utf-8")
+    assert "NVIDIAの話題" in html
+    assert "米金融政策の話題" not in html
+    assert "その他の話題" not in html
+
+
+def test_news_zero_results_shows_explicit_message_not_fabricated(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    path, _ = _generate(tmp_path, _all_ok_results(), now=now, news_out=_empty_news_out())
+    html = path.read_text(encoding="utf-8")
+    assert "直近24時間以内に該当する重要ニュースはありません" in html
+
+
+def test_news_fetch_failure_shows_explicit_message(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    news_out = {"news": [], "errors": ["google_news_rss('AI'): timeout"], "fetched_at": now.isoformat()}
+    path, _ = _generate(tmp_path, _all_ok_results(), now=now, news_out=news_out)
+    html = path.read_text(encoding="utf-8")
+    assert "ニュースデータ取得不可" in html
+    assert "timeout" in html
+
+
+def test_news_title_and_source_are_html_escaped(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    news = [
+        _news_item(
+            "nvidia", 'NVIDIA<script>alert("x")</script> & "引用" テスト', 1, now,
+            source='テスト<b>通信</b> & Co.',
+        )
+    ]
+    news_out = {"news": news, "errors": [], "fetched_at": now.isoformat()}
+    path, _ = _generate(tmp_path, _all_ok_results(), now=now, news_out=news_out)
+    html = path.read_text(encoding="utf-8")
+    assert '<script>alert("x")</script>' not in html  # ニュースタイトル由来の生スクリプトタグが混入していない
+    assert "&lt;script&gt;alert" in html  # エスケープされた形で表示されている
+    assert "テスト&lt;b&gt;通信&lt;/b&gt; &amp; Co." in html  # ソース名もエスケープされている
+
+
+def test_news_does_not_affect_overseas_score(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    results = _all_ok_results()
+    news = [_news_item("nvidia", "何かのニュース", 1, now)]
+    news_out = {"news": news, "errors": [], "fetched_at": now.isoformat()}
+    _, score_with_news = _generate(tmp_path, results, now=now, news_out=news_out)
+    _, score_without_news = _generate(tmp_path, results, now=now, news_out=_empty_news_out())
+    assert score_with_news == score_without_news

@@ -1,4 +1,4 @@
-"""HTML生成（STEP4 + STEP5）。
+"""HTML生成（STEP4 + STEP5 + STEP6 + STEP8-A）。
 
 役割分離の原則:
 - 市場データの取得は data/market.py、スコア計算は analysis/score.py の責務。
@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import html as html_lib
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,24 @@ from zoneinfo import ZoneInfo
 
 from analysis.score import SCORED_METRICS, classify_by_threshold
 from data.market import MetricResult
+from data.news import NewsItem, select_for_display
+
+# STEP8-A: カテゴリコード→日本語表示名。us_market/otherはcategory_priorityに
+# 含めない限り「注目ニュース」には表示されないが、ラベル自体は用意しておく。
+CATEGORY_LABELS: dict[str, str] = {
+    "nvidia": "NVIDIA関連",
+    "semiconductor": "半導体",
+    "ai": "AI",
+    "boj": "日銀",
+    "fx": "為替",
+    "rates": "金利",
+    "japan_market": "日本株",
+    "china": "中国",
+    "energy": "原油・エネルギー",
+    "defense": "防衛",
+    "us_market": "米金融政策",
+    "other": "その他",
+}
 
 TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "morning11.html"
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
@@ -229,6 +248,82 @@ def _events_context(events_out: dict[str, Any]) -> dict[str, str]:
     return {"EVENTS_TAG": tag, "EVENTS_BLOCK": "\n".join(blocks)}
 
 
+def _relative_time_ja(published_at: str | None, now: datetime) -> str:
+    if not published_at:
+        return "時刻不明"
+    try:
+        published = datetime.fromisoformat(published_at)
+    except ValueError:
+        return "時刻不明"
+    minutes = max(0, int((now - published).total_seconds() // 60))
+    if minutes < 60:
+        return f"{minutes}分前"
+    return f"{minutes // 60}時間前"
+
+
+def _news_item_line(item: NewsItem, now: datetime) -> str:
+    """外部（Google News RSS）由来の未信頼データのため、HTMLへ挿入する前に必ずエスケープする。"""
+    title = html_lib.escape(item.title)
+    url = html_lib.escape(item.url)
+    source = html_lib.escape(item.source)
+    rel_time = _relative_time_ja(item.published_at, now)
+    return f'      <li><a href="{url}">{title}</a> — {source} — {rel_time}</li>'
+
+
+def _news_context(news_out: dict[str, Any], settings: dict[str, Any], now: datetime) -> dict[str, str]:
+    """STEP8-A: data/news.fetch_news() の結果から「注目ニュース」欄のHTMLを組み立てる。
+
+    表示選定（select_for_display）はカテゴリ優先順位＋新しさだけの機械的な処理で、
+    タイトルの意味解釈やAIによる重要度判定は一切行わない。
+    us_market/otherはcategory_priorityに含まれないため、この欄には表示されないが、
+    news_out自体（元データ）は変更していないので他の用途では全カテゴリを参照できる。
+    """
+    news_settings = settings.get("news", {})
+    category_priority: list[str] = news_settings.get("category_priority", [])
+    max_per_category = news_settings.get("max_per_category_display", 3)
+    max_total = news_settings.get("max_display_total", 10)
+
+    all_news: list[NewsItem] = news_out.get("news", [])
+    errors: list[str] = news_out.get("errors", [])
+    selected = select_for_display(all_news, category_priority, max_per_category, max_total)
+
+    tag = f"直近24時間・最大{max_total}件"
+
+    if selected:
+        by_category: dict[str, list[NewsItem]] = {}
+        for item in selected:
+            by_category.setdefault(item.category, []).append(item)
+
+        parts: list[str] = []
+        for category in category_priority:
+            items = by_category.get(category)
+            if not items:
+                continue
+            label = html_lib.escape(CATEGORY_LABELS.get(category, category))
+            parts.append(f'    <p style="margin:0"><strong>■ {label}</strong></p>')
+            parts.append("    <ul>")
+            parts.extend(_news_item_line(item, now) for item in items)
+            parts.append("    </ul>")
+
+        if errors:
+            escaped_errors = html_lib.escape("; ".join(errors))
+            parts.append(
+                f'    <p style="margin:0">一部のニュースソースが取得できませんでした（{escaped_errors}）。'
+                "架空のニュースは表示していません。</p>"
+            )
+        block = "\n".join(parts)
+    elif errors:
+        escaped_errors = html_lib.escape("; ".join(errors))
+        block = (
+            f'    <p style="margin:0">ニュースデータ取得不可（{escaped_errors}）。'
+            "架空のニュースは表示していません。</p>"
+        )
+    else:
+        block = '    <p style="margin:0">直近24時間以内に該当する重要ニュースはありません。</p>'
+
+    return {"NEWS_TAG": tag, "NEWS_BLOCK": block}
+
+
 def _pattern_fragment(label: str, metric: dict[str, Any]) -> str:
     if metric["status"] != "ok":
         return f"<span class=\"f\">{label} 取得失敗</span>"
@@ -251,6 +346,7 @@ def build_context(
     settings: dict[str, Any],
     now: datetime,
     events_out: dict[str, Any],
+    news_out: dict[str, Any],
 ) -> dict[str, str]:
     overseas = metric_results["overseas"]
     japan = metric_results["japan"]
@@ -353,6 +449,16 @@ def build_context(
     # FOMC・日銀等は手動メンテナンスの静的カレンダー。意味解釈はまだ行わない）
     context.update(_events_context(events_out))
 
+    # 注目ニュース（STEP8-A: data/news.pyで取得済みのニュースから機械的に選定して表示。
+    # AIによる意味解釈・重要度判定はまだ行わない）
+    context.update(_news_context(news_out, settings, now))
+
+    # AIによる総合分析（STEP8-Bで実装予定。現時点では固定のプレースホルダー文）
+    context["AI_ANALYSIS_BLOCK"] = (
+        "AIによる総合分析はまだ実装されていません（STEP8-Bで実装予定）。"
+        "現時点の総合スコアの内訳・今週の重要イベント・注目ニュースは、それぞれ上記の各セクションをご確認ください。"
+    )
+
     # スコアの付け方（データから機械的に生成、対象は海外5指標のみ）
     context["BOND_THRESHOLD_BP"] = str(settings["bond_yield_threshold_bp"])
     bullets = [
@@ -395,6 +501,7 @@ def generate_report(
     score_out: dict[str, Any],
     settings: dict[str, Any],
     events_out: dict[str, Any],
+    news_out: dict[str, Any],
     output_dir: Path | None = None,
     now: datetime | None = None,
 ) -> Path:
@@ -403,7 +510,7 @@ def generate_report(
     output_dir = output_dir or DEFAULT_OUTPUT_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    context = build_context(metric_results, score_out, settings, now, events_out)
+    context = build_context(metric_results, score_out, settings, now, events_out, news_out)
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     html = render(template, context)
 

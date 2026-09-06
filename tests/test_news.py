@@ -4,7 +4,7 @@ AI APIも使用しない（categorize()はルールベースの辞書引きの�
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
@@ -227,3 +227,71 @@ def test_fetch_news_partial_failure_keeps_other_keywords_and_reports_error():
 
     assert len(out["news"]) == 1  # 半導体側は成功
     assert any("network down" in e for e in out["errors"])
+
+
+# --- STEP8-A: select_for_display（表示選定。データそのものは変更しない） ------
+
+CATEGORY_PRIORITY = [
+    "nvidia", "semiconductor", "ai", "boj", "fx", "rates",
+    "japan_market", "china", "energy", "defense",
+]
+
+
+def _news(category, hours_ago, now, title=None):
+    published = now - timedelta(hours=hours_ago)
+    return news.NewsItem(
+        title=title or f"{category}-{hours_ago}",
+        url=f"https://example.com/{category}/{hours_ago}",
+        published_at=published.isoformat(),
+        source="s",
+        category=category,
+        matched_keyword="k",
+    )
+
+
+def test_select_for_display_orders_by_category_priority_then_recency():
+    now = datetime(2026, 9, 6, 21, 0, tzinfo=JST)
+    items = [
+        _news("boj", 1, now),
+        _news("nvidia", 3, now),
+        _news("nvidia", 1, now),  # nvidia内ではこちらが新しい
+    ]
+    result = news.select_for_display(items, CATEGORY_PRIORITY, max_per_category=3, max_total=10)
+    assert [i.category for i in result] == ["nvidia", "nvidia", "boj"]
+    assert result[0].published_at > result[1].published_at  # nvidia内は新しい順
+
+
+def test_select_for_display_caps_per_category():
+    now = datetime(2026, 9, 6, 21, 0, tzinfo=JST)
+    items = [_news("nvidia", h, now) for h in range(1, 6)]  # 5件
+    result = news.select_for_display(items, CATEGORY_PRIORITY, max_per_category=3, max_total=10)
+    assert len(result) == 3
+    assert [i.published_at for i in result] == sorted((i.published_at for i in result), reverse=True)
+
+
+def test_select_for_display_caps_total_across_categories():
+    now = datetime(2026, 9, 6, 21, 0, tzinfo=JST)
+    items = []
+    for cat in CATEGORY_PRIORITY:
+        items.extend(_news(cat, h, now) for h in range(1, 4))  # 各カテゴリ3件、合計30件
+    result = news.select_for_display(items, CATEGORY_PRIORITY, max_per_category=3, max_total=10)
+    assert len(result) == 10
+
+
+def test_select_for_display_excludes_categories_outside_priority_list():
+    now = datetime(2026, 9, 6, 21, 0, tzinfo=JST)
+    items = [_news("us_market", 1, now), _news("other", 1, now), _news("nvidia", 1, now)]
+    result = news.select_for_display(items, CATEGORY_PRIORITY, max_per_category=3, max_total=10)
+    assert [i.category for i in result] == ["nvidia"]
+
+
+def test_select_for_display_does_not_mutate_input_list():
+    now = datetime(2026, 9, 6, 21, 0, tzinfo=JST)
+    items = [_news("us_market", 1, now), _news("nvidia", 1, now)]
+    original_len = len(items)
+    news.select_for_display(items, CATEGORY_PRIORITY, max_per_category=3, max_total=10)
+    assert len(items) == original_len  # us_marketを含む元データは変更されない
+
+
+def test_select_for_display_empty_input_returns_empty_list():
+    assert news.select_for_display([], CATEGORY_PRIORITY, max_per_category=3, max_total=10) == []
