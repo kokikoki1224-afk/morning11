@@ -109,5 +109,25 @@
       "defense"
     ],
     "_note_display": "STEP8-A: 「注目ニュース」欄の表示選定はcategory_priority順・カテゴリごとmax_per_category_display件・合計max_display_total件まで。us_market/otherはcategory_priorityに含めず表示対象外だが、data/news.pyの取得・分類データ自体からは削除しない(STEP8-B以降でAIが全カテゴリを参照できるようにするため)"
+  },
+  "ai": {
+    "enabled": true,
+    "model": "claude-opus-5",
+    "compare_models": ["claude-opus-5", "claude-sonnet-5"],
+    "max_tokens": 8000,
+    "timeout_seconds": 120,
+    "max_news_items": 30,
+    "sectors": [
+      "半導体",
+      "AI・グロース",
+      "銀行",
+      "輸出株",
+      "内需",
+      "防衛",
+      "エネルギー",
+      "商社"
+    ],
+    "not_implemented_metrics": ["S&P500", "NYダウ", "日経平均"],
+    "_note": "STEP8-B: モデルIDはここから読み、コードにハードコードしない。APIキーは環境変数ANTHROPIC_API_KEYのみ(設定ファイルに書かない)。--ai-compareではcompare_modelsを同一入力・同一プロンプトで順に実行し、変えるのはモデルだけにする。HTMLへの統合はSTEP8-B-4で対応予定"
   }
 }
