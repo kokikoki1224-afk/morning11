@@ -338,3 +338,69 @@ def test_ai_failure_leaves_market_event_news_pipeline_untouched(status, monkeypa
     events_out, news_out = _events_out(), _news_out()
     assert len(events_out["events"]) == 1
     assert len(news_out["news"]) == 1
+
+
+# --- STEP8-B-4: 推定コスト -------------------------------------------------
+
+def test_estimate_cost_uses_pricing_table_from_settings():
+    settings = {**SETTINGS, "ai": {**SETTINGS["ai"], "pricing": {
+        "claude-opus-5": {"input_usd_per_mtok": 5.0, "output_usd_per_mtok": 25.0},
+        "claude-sonnet-5": {"input_usd_per_mtok": 2.0, "output_usd_per_mtok": 10.0},
+    }}}
+    # Opus: 100万×$5 + 100万×$25 の比率で検算
+    assert ai_analysis.estimate_cost_usd("claude-opus-5", 1_000_000, 1_000_000, settings) == 30.0
+    assert ai_analysis.estimate_cost_usd("claude-sonnet-5", 1_000_000, 1_000_000, settings) == 12.0
+    # 実運用に近い規模
+    assert ai_analysis.estimate_cost_usd("claude-opus-5", 5000, 3000, settings) == pytest.approx(0.1)
+
+
+def test_estimate_cost_returns_none_for_unknown_model_or_missing_tokens():
+    settings = {**SETTINGS, "ai": {**SETTINGS["ai"], "pricing": {
+        "claude-opus-5": {"input_usd_per_mtok": 5.0, "output_usd_per_mtok": 25.0},
+    }}}
+    assert ai_analysis.estimate_cost_usd("claude-unknown-9", 1000, 1000, settings) is None
+    assert ai_analysis.estimate_cost_usd("claude-opus-5", None, 1000, settings) is None
+    assert ai_analysis.estimate_cost_usd("claude-opus-5", 1000, None, settings) is None
+
+
+def test_run_ai_analysis_populates_estimated_cost(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy")
+    settings = {**SETTINGS, "ai": {**SETTINGS["ai"], "pricing": {
+        "claude-opus-5": {"input_usd_per_mtok": 5.0, "output_usd_per_mtok": 25.0},
+    }}}
+    with patch("anthropic.Anthropic", return_value=_patched_client(_fake_response(_analysis()))):
+        result = ai_analysis.run_ai_analysis(_ai_input(), settings)
+    # 1234 in / 567 out
+    expected = (1234 / 1_000_000) * 5.0 + (567 / 1_000_000) * 25.0
+    assert result.estimated_cost_usd == pytest.approx(expected)
+    assert result.to_dict()["estimated_cost_usd"] == pytest.approx(expected)
+
+
+def test_settings_json_has_official_model_ids_and_pricing():
+    """公式ドキュメントで確認した正式なモデルIDと料金が設定に入っていること。"""
+    from data.market import load_settings
+
+    ai = load_settings()["ai"]
+    assert ai["model"] in ("claude-opus-5", "claude-sonnet-5")
+    assert ai["compare_models"] == ["claude-opus-5", "claude-sonnet-5"]
+    assert ai["pricing"]["claude-opus-5"] == {"input_usd_per_mtok": 5.0, "output_usd_per_mtok": 25.0}
+    assert ai["pricing"]["claude-sonnet-5"] == {"input_usd_per_mtok": 2.0, "output_usd_per_mtok": 10.0}
+
+
+# --- APIキーが出力・ログへ漏れないこと --------------------------------------
+
+def test_api_key_never_appears_in_result_or_saved_json(monkeypatch):
+    secret = "sk-ant-THIS-MUST-NOT-LEAK-123456"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", secret)
+    ai_input = _ai_input()
+
+    with patch("anthropic.Anthropic", return_value=_patched_client(_fake_response(_analysis()))):
+        results = ai_analysis.compare_models(ai_input, SETTINGS)
+
+    payload = json.dumps(
+        {"ai_input": ai_input, "results": [r.to_dict() for r in results]},
+        ensure_ascii=False,
+    )
+    assert secret not in payload
+    assert "sk-ant-" not in payload
+    assert "ANTHROPIC_API_KEY" not in json.dumps(ai_input, ensure_ascii=False)

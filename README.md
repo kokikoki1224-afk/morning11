@@ -1,4 +1,4 @@
-# 日本株モーニング11 自動化（STEP8-B-3まで）
+# 日本株モーニング11 自動化（STEP8-B-4まで）
 
 ## STEP8-B-1〜B-3: AI分析（入力設計・モデル切り替え・2モデル比較）
 
@@ -12,14 +12,20 @@
 
 AIは**計算結果を解釈する役割**であり、数値を再計算しない。プロンプトでも明示し、さらにコード側の数値ガード（`validate_numbers()`）でAI出力中の `%` / `bp` / `円` / カンマ区切り数値が入力データに実在するか検証して、実在しないものを警告として記録する。
 
-### 使用モデル（正式なモデルID・設定から切り替え）
+### 使用モデル（公式ドキュメントで再確認済み・設定から切り替え）
 
-Anthropic公式仕様で確認した正式なモデルIDのみを使用している。**コードにハードコードせず `config/settings.json` の `ai.model` から読む**。
+**2026-09-07にAnthropic公式ドキュメントを実際に取得して確認**（[models/overview](https://platform.claude.com/docs/en/about-claude/models/overview) / [pricing](https://platform.claude.com/docs/en/about-claude/pricing)）。両IDとも現行の正式なClaude API IDであり、**変更は不要**だった。**コードにハードコードせず `config/settings.json` の `ai.model` から読む**。
 
-| モデルID | 入力/出力 単価（per 1M tokens） |
-|---|---|
-| `claude-opus-5` | $5.00 / $25.00 |
-| `claude-sonnet-5` | $2.00 / $10.00 |
+| モデルID | 状態 | 入力 / 出力（per MTok） | 提供終了時期（公式コミット） |
+|---|---|---|---|
+| `claude-opus-5` | 現行 | $5.00 / $25.00 | 2027-07-24より前には終了しない |
+| `claude-sonnet-5` | 現行 | $2.00 / $10.00 | 2027-06-30より前には終了しない |
+
+- Sonnet 5の $2/$10 は当初「2026-08-31までの導入価格」だったが、公式に**標準価格として据え置き**（$3/$15への値上げは実施されない）と明記されている
+- 両モデルとも thinking は adaptive、default effort は `high`、コンテキスト1M・最大出力128K
+- 1Mまで長コンテキスト追加課金なし。プロンプトキャッシュ読み出しは基本入力価格の0.1倍（本実装ではキャッシュ・バッチ割引は使っていない）
+
+料金は `config/settings.json` の `ai.pricing` に持たせており（取得元URLと確認日も併記）、価格改定時はコードを触らず設定だけ更新すればよい。**推定コストは概算であり、実際の請求額と一致しない場合がある。**
 
 ### 実行方法
 
@@ -31,7 +37,28 @@ python main.py --ai-compare        # compare_models（既定: Opus 5とSonnet 5�
 
 **`--ai-compare` は実行したモデル数だけAPIコストがかかる**（通常実行の約2倍）。日々の運用では `--ai`（1モデル）を使うこと。
 
-結果は `output/ai_run_YYYY-MM-DD.json` / `output/ai_compare_YYYY-MM-DD.json` に保存され（gitignore対象）、使用モデル・入力データ・AI出力・実行時間・トークン数・エラーの有無をローカルで見比べられる。HTMLへは自動公開しない。
+実行後、コンソールに比較サマリ表が出る:
+
+```text
+=== 比較サマリ ===
+model                status     elapsed    in/out tokens   est.cost  error
+claude-opus-5        ok           12.3s        4321/1234    $0.0525
+claude-sonnet-5      ok            6.8s        4180/1190    $0.0202
+合計（推定）                                                  $0.0727
+```
+
+同時に `output/ai_run_YYYY-MM-DD.json` / `output/ai_compare_YYYY-MM-DD.json` に保存される（gitignore対象・HTMLへは自動公開しない）。保存内容:
+
+| 項目 | キー |
+|---|---|
+| 実行日時 | `generated_at` |
+| 実行モード | `mode`（`single` / `compare`） |
+| 料金表の出典 | `pricing_source` |
+| 推定コスト合計 | `total_estimated_cost_usd` |
+| AIへの入力データ | `ai_input` |
+| モデルごとの結果 | `results[]`: `model` / `status` / `input_tokens` / `output_tokens` / `elapsed_seconds` / `estimated_cost_usd` / `analysis`（AIのJSON出力） / `error` / `warnings` |
+
+**APIキーは環境変数からのみ読み、ログにも保存JSONにも一切書き出さない**（回帰防止テスト `test_api_key_never_appears_in_result_or_saved_json` で検証済み）。
 
 ### 比較の公平性
 
@@ -66,8 +93,8 @@ python main.py --ai-compare        # compare_models（既定: Opus 5とSonnet 5�
 | `stop_reason == "refusal"` | 同上 |
 | いずれの場合も | 市場データ・スコア・イベント・ニュース・HTML生成は影響を受けない |
 
-### テスト（`tests/test_ai_analysis.py` 20件、`python -m pytest` で114件全て合格）
-実APIは一切叩かない。設定からのモデル切り替え、2モデルが同一入力・同一プロンプトになること、JSONパース、不正JSON・APIエラー・キー未設定時に異常終了しないこと、AI分析がスコアを変更しないこと、AI失敗時も市場データ/イベント/ニュースが無傷であること、数値ガードの検知を検証。
+### テスト（`tests/test_ai_analysis.py` 25件、`python -m pytest` で119件全て合格）
+実APIは一切叩かない。設定からのモデル切り替え、推定コストの算出、APIキーが結果・保存JSONに混入しないこと、2モデルが同一入力・同一プロンプトになること、JSONパース、不正JSON・APIエラー・キー未設定時に異常終了しないこと、AI分析がスコアを変更しないこと、AI失敗時も市場データ/イベント/ニュースが無傷であること、数値ガードの検知を検証。
 
 ---
 

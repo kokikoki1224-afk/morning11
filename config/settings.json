@@ -4,19 +4,31 @@
   "overseas": {
     "nasdaq": {
       "label": "Nasdaq総合",
-      "primary": {"provider": "yfinance", "symbol": "^IXIC"},
+      "primary": {
+        "provider": "yfinance",
+        "symbol": "^IXIC"
+      },
       "fallback": null,
       "_note": "StooqはJS bot対策チャレンジ導入によりSTEP2実装時点(2026-09)で機械的取得不可と判明したため不採用"
     },
     "sox": {
       "label": "SOX（フィラデルフィア半導体指数）",
-      "primary": {"provider": "yfinance", "symbol": "^SOX"},
+      "primary": {
+        "provider": "yfinance",
+        "symbol": "^SOX"
+      },
       "fallback": null
     },
     "us10y": {
       "label": "米10年債利回り",
-      "primary": {"provider": "fred", "series_id": "DGS10"},
-      "fallback": {"provider": "yfinance", "symbol": "^TNX"},
+      "primary": {
+        "provider": "fred",
+        "series_id": "DGS10"
+      },
+      "fallback": {
+        "provider": "yfinance",
+        "symbol": "^TNX"
+      },
       "_note": "yfinanceの^TNXは実測値そのもの(例 4.79)を返す。10倍表記(旧CBOE慣行)ではないため divide_by は使わない"
     },
     "usdjpy": {
@@ -33,7 +45,10 @@
     },
     "kospi": {
       "label": "KOSPI",
-      "primary": {"provider": "yfinance", "symbol": "^KS11"},
+      "primary": {
+        "provider": "yfinance",
+        "symbol": "^KS11"
+      },
       "fallback": null
     }
   },
@@ -52,27 +67,59 @@
     },
     "topix_etf": {
       "label": "TOPIX連動ETF（1306.T）",
-      "primary": {"provider": "yfinance", "symbol": "1306.T"},
+      "primary": {
+        "provider": "yfinance",
+        "symbol": "1306.T"
+      },
       "fallback": null,
       "_note": "^TOPX/^TPXはSTEP2検証時点で取得不可(データなし)。TOPIX指数そのものではなくETFの代理指標である点をHTML上でも明示する"
     },
     "japan10y": {
       "label": "日本10年国債利回り",
-      "primary": {"provider": "mof_jgb10y"},
+      "primary": {
+        "provider": "mof_jgb10y"
+      },
       "fallback": null,
       "_note": "財務省公式CSV(国債金利情報)を使用。無料・公式・キー不要。10年債列(基準日の次から10番目の値)を抽出"
     }
   },
   "events": {
     "days_ahead": 7,
-    "importance_filter": ["high"],
+    "importance_filter": [
+      "high"
+    ],
     "_note": "STEP6: 米国主要指標はFRED公式APIの release/dates で自動取得。FOMC・日銀・日本GDP等はSTEP6時点で安定した無料APIが見つからず、config/events_calendar.json の手動メンテナンス静的データを使用(README参照)。取得できないイベントは推測で埋めない",
     "fred_releases": {
-      "米CPI": {"release_id": 10, "country": "US", "importance": "high", "release_time_et": "08:30"},
-      "米雇用統計(NFP)": {"release_id": 50, "country": "US", "importance": "high", "release_time_et": "08:30"},
-      "米GDP": {"release_id": 53, "country": "US", "importance": "high", "release_time_et": "08:30"},
-      "米小売売上高": {"release_id": 9, "country": "US", "importance": "medium", "release_time_et": "08:30"},
-      "米PCE": {"release_id": 54, "country": "US", "importance": "high", "release_time_et": "08:30"}
+      "米CPI": {
+        "release_id": 10,
+        "country": "US",
+        "importance": "high",
+        "release_time_et": "08:30"
+      },
+      "米雇用統計(NFP)": {
+        "release_id": 50,
+        "country": "US",
+        "importance": "high",
+        "release_time_et": "08:30"
+      },
+      "米GDP": {
+        "release_id": 53,
+        "country": "US",
+        "importance": "high",
+        "release_time_et": "08:30"
+      },
+      "米小売売上高": {
+        "release_id": 9,
+        "country": "US",
+        "importance": "medium",
+        "release_time_et": "08:30"
+      },
+      "米PCE": {
+        "release_id": 54,
+        "country": "US",
+        "importance": "high",
+        "release_time_et": "08:30"
+      }
     }
   },
   "news": {
@@ -113,7 +160,10 @@
   "ai": {
     "enabled": true,
     "model": "claude-opus-5",
-    "compare_models": ["claude-opus-5", "claude-sonnet-5"],
+    "compare_models": [
+      "claude-opus-5",
+      "claude-sonnet-5"
+    ],
     "max_tokens": 8000,
     "timeout_seconds": 120,
     "max_news_items": 30,
@@ -127,7 +177,23 @@
       "エネルギー",
       "商社"
     ],
-    "not_implemented_metrics": ["S&P500", "NYダウ", "日経平均"],
-    "_note": "STEP8-B: モデルIDはここから読み、コードにハードコードしない。APIキーは環境変数ANTHROPIC_API_KEYのみ(設定ファイルに書かない)。--ai-compareではcompare_modelsを同一入力・同一プロンプトで順に実行し、変えるのはモデルだけにする。HTMLへの統合はSTEP8-B-4で対応予定"
+    "not_implemented_metrics": [
+      "S&P500",
+      "NYダウ",
+      "日経平均"
+    ],
+    "_note": "STEP8-B: モデルIDはここから読み、コードにハードコードしない。APIキーは環境変数ANTHROPIC_API_KEYのみ(設定ファイルに書かない)。--ai-compareではcompare_modelsを同一入力・同一プロンプトで順に実行し、変えるのはモデルだけにする。HTMLへの統合はSTEP8-B-4で対応予定",
+    "pricing": {
+      "_source": "https://platform.claude.com/docs/en/about-claude/pricing (2026-09-07 確認)",
+      "claude-opus-5": {
+        "input_usd_per_mtok": 5.0,
+        "output_usd_per_mtok": 25.0
+      },
+      "claude-sonnet-5": {
+        "input_usd_per_mtok": 2.0,
+        "output_usd_per_mtok": 10.0
+      }
+    },
+    "_note_models": "モデルIDは2026-09-07にAnthropic公式ドキュメント(models/overview)で確認済み。claude-opus-5 / claude-sonnet-5 はいずれも現行の正式なClaude API ID。料金は pricing ページの基本料金(キャッシュ・バッチ割引なし)。推定コストは概算であり請求額とは一致しない場合がある"
   }
 }

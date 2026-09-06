@@ -66,6 +66,7 @@ class AiAnalysisResult:
     elapsed_seconds: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    estimated_cost_usd: float | None = None
     error: str | None = None
     warnings: list[str] = field(default_factory=list)
 
@@ -77,6 +78,7 @@ class AiAnalysisResult:
             "elapsed_seconds": self.elapsed_seconds,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
+            "estimated_cost_usd": self.estimated_cost_usd,
             "error": self.error,
             "warnings": list(self.warnings),
         }
@@ -224,6 +226,35 @@ def validate_numbers(analysis: AiAnalysis, ai_input: dict[str, Any]) -> list[str
     return warnings
 
 
+# --- 推定コスト -------------------------------------------------------------
+
+def estimate_cost_usd(
+    model: str,
+    input_tokens: int | None,
+    output_tokens: int | None,
+    settings: dict[str, Any],
+) -> float | None:
+    """トークン数と設定の料金表から概算コスト(USD)を求める。
+
+    料金は config/settings.json の ai.pricing（Anthropic公式の基本料金）から読む。
+    料金表に無いモデル、あるいはトークン数が取れなかった場合は推測せず None を返す。
+    プロンプトキャッシュ割引・バッチ割引は考慮しない概算値であり、実際の請求額とは
+    一致しない場合がある。
+    """
+    if input_tokens is None or output_tokens is None:
+        return None
+    pricing = settings.get("ai", {}).get("pricing", {}).get(model)
+    if not isinstance(pricing, dict):
+        return None
+    try:
+        input_rate = float(pricing["input_usd_per_mtok"])
+        output_rate = float(pricing["output_usd_per_mtok"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    cost = (input_tokens / 1_000_000) * input_rate + (output_tokens / 1_000_000) * output_rate
+    return round(cost, 6)
+
+
 # --- STEP8-B-2: モデル切り替え・実行 ---------------------------------------
 
 def should_run_ai(settings: dict[str, Any]) -> tuple[bool, str | None]:
@@ -301,13 +332,16 @@ def run_ai_analysis(
         )
 
     usage = getattr(response, "usage", None)
+    input_tokens = getattr(usage, "input_tokens", None)
+    output_tokens = getattr(usage, "output_tokens", None)
     return AiAnalysisResult(
         status="ok",
         model=model_id,
         analysis=analysis,
         elapsed_seconds=elapsed,
-        input_tokens=getattr(usage, "input_tokens", None),
-        output_tokens=getattr(usage, "output_tokens", None),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        estimated_cost_usd=estimate_cost_usd(model_id, input_tokens, output_tokens, settings),
         warnings=validate_numbers(analysis, ai_input),
     )
 

@@ -116,6 +116,8 @@ def _log_ai_result(result: ai_analysis.AiAnalysisResult) -> None:
         header += f" elapsed={result.elapsed_seconds}s"
     if result.input_tokens is not None:
         header += f" tokens(in/out)={result.input_tokens}/{result.output_tokens}"
+    if result.estimated_cost_usd is not None:
+        header += f" est_cost=${result.estimated_cost_usd:.4f}"
     print(header)
     if result.error:
         print(f"  error: {result.error}", file=sys.stderr)
@@ -163,13 +165,31 @@ def run_ai(settings: dict, results: dict, score_out: dict, events_out: dict, new
         print()
         _log_ai_result(result)
 
+    print()
+    print("=== 比較サマリ ===")
+    print(f"{'model':<20} {'status':<8} {'elapsed':>9} {'in/out tokens':>16} {'est.cost':>10}  error")
+    total_cost = 0.0
+    for r in ai_results:
+        tokens = f"{r.input_tokens}/{r.output_tokens}" if r.input_tokens is not None else "-"
+        elapsed = f"{r.elapsed_seconds}s" if r.elapsed_seconds is not None else "-"
+        cost = f"${r.estimated_cost_usd:.4f}" if r.estimated_cost_usd is not None else "-"
+        if r.estimated_cost_usd:
+            total_cost += r.estimated_cost_usd
+        print(f"{str(r.model):<20} {r.status:<8} {elapsed:>9} {tokens:>16} {cost:>10}  {r.error or ''}")
+    if total_cost:
+        print(f"{'合計（推定）':<20} {'':<8} {'':>9} {'':>16} ${total_cost:.4f}")
+
     output_dir = Path(__file__).resolve().parent / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
     out_path = output_dir / f"ai_{'compare' if compare else 'run'}_{now.strftime('%Y-%m-%d')}.json"
+    costs = [r.estimated_cost_usd for r in ai_results if r.estimated_cost_usd is not None]
     out_path.write_text(
         json.dumps(
             {
                 "generated_at": now.isoformat(),
+                "mode": "compare" if compare else "single",
+                "pricing_source": settings.get("ai", {}).get("pricing", {}).get("_source"),
+                "total_estimated_cost_usd": round(sum(costs), 6) if costs else None,
                 "ai_input": ai_input,
                 "results": [r.to_dict() for r in ai_results],
             },
