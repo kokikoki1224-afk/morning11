@@ -1,12 +1,14 @@
-"""HTML生成（STEP4）。
+"""HTML生成（STEP4 + STEP5）。
 
 役割分離の原則:
 - 市場データの取得は data/market.py、スコア計算は analysis/score.py の責務。
 - ここではその結果を受け取り、既存の「日本株モーニング11」のデザイン・CSS・レイアウトを
   一切変更せず、templates/morning11.html のプレースホルダーに値を埋め込むだけを行う。
-- AIによる文章解釈（見出し・組み合わせ分析・セクター分析等）はSTEP4では実装しない。
+- AIによる文章解釈（見出し・組み合わせ分析・セクター分析等）はまだ実装しない。
   該当箇所は機械的な定型文（後続ステップで実装予定の旨を明記）にとどめる。
 - 取得失敗・未実装の指標は、推測値で埋めず「取得失敗」「未実装」と明示する。
+- 日本市場3指標（日経225先物・TOPIX連動ETF・日本10年債）はSTEP5で追加した参考情報で、
+  総合スコア（analysis/score.py が扱うのは overseas 側の5指標のみ）には一切影響しない。
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ MINUS = "−"  # 既存デザインが使っている全角寄りのマイナス
 
 WEEKDAY_JA = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
-# STEP2/3で自動取得・スコア計算まで実装済みの5指標
+# STEP2/3で自動取得・スコア計算まで実装済みの海外5指標（総合スコア対象）
 SCORED_ROW_PREFIXES: dict[str, tuple[str, bool]] = {
     "nasdaq": ("NASDAQ", False),
     "sox": ("SOX", False),
@@ -35,8 +37,15 @@ SCORED_ROW_PREFIXES: dict[str, tuple[str, bool]] = {
     "kospi": ("KOSPI", False),
 }
 
-# 既存HTMLのカード構造は維持するが、STEP4時点では自動取得の対象外（STEP5以降で対応）
-NOT_IMPLEMENTED_PREFIXES = ["SP500", "DOW", "NKFUT", "NIKKEI", "TOPIX", "JGB10Y"]
+# STEP5で自動取得を追加した日本市場3指標（参考情報・総合スコア対象外）
+REFERENCE_ROW_PREFIXES: dict[str, tuple[str, bool]] = {
+    "nikkei_futures": ("NKFUT", False),
+    "topix_etf": ("TOPIX", False),
+    "japan10y": ("JGB10Y", True),
+}
+
+# 既存HTMLのカード構造は維持するが、現時点では自動取得の対象外（後続ステップで対応）
+NOT_IMPLEMENTED_PREFIXES = ["SP500", "DOW", "NIKKEI"]
 
 
 def fmt_signed(value: float, decimals: int, suffix: str) -> str:
@@ -54,7 +63,7 @@ def _not_implemented_tokens(prefix: str) -> dict[str, str]:
         f"{prefix}_VALUE": "未実装",
         f"{prefix}_FIG_CLASS": "flat",
         f"{prefix}_CHANGE": "未実装",
-        f"{prefix}_NOTE": "STEP5以降で自動取得を実装予定です（現時点では未対応のため数値は表示していません）。",
+        f"{prefix}_NOTE": "後続ステップで自動取得を実装予定です（現時点では未対応のため数値は表示していません）。",
         f"{prefix}_IMPACT_CLASS": "",
         f"{prefix}_IMPACT": "未実装のため評価・スコア対象外です。",
     }
@@ -81,13 +90,13 @@ def _score_stripe_impact_class(score: int) -> tuple[str, str]:
     return "", ""
 
 
-def _ok_tokens(
-    prefix: str,
-    result: MetricResult,
-    score: int,
-    is_yield: bool,
-    settings: dict[str, Any],
-) -> dict[str, str]:
+def _raw_direction_class(raw_dir: int) -> str:
+    return {1: "up", -1: "down", 0: "flat"}[raw_dir]
+
+
+def _format_value_and_change(
+    result: MetricResult, is_yield: bool, settings: dict[str, Any]
+) -> tuple[str, str, int]:
     if is_yield:
         value_str = f"{result.value:.3f}%"
         change_val = result.change_bp or 0.0
@@ -98,8 +107,18 @@ def _ok_tokens(
         change_val = result.change_percent or 0.0
         change_str = fmt_signed(change_val, 2, "%")
         raw_dir = classify_by_threshold(change_val, settings["score_threshold_percent"])
+    return value_str, change_str, raw_dir
 
-    fig_class = {1: "up", -1: "down", 0: "flat"}[raw_dir]
+
+def _ok_tokens(
+    prefix: str,
+    result: MetricResult,
+    score: int,
+    is_yield: bool,
+    settings: dict[str, Any],
+) -> dict[str, str]:
+    value_str, change_str, raw_dir = _format_value_and_change(result, is_yield, settings)
+    fig_class = _raw_direction_class(raw_dir)
     stripe_class, impact_class = _score_stripe_impact_class(score)
 
     note = (
@@ -121,7 +140,35 @@ def _ok_tokens(
     }
 
 
-def _pattern_fragment(prefix: str, label: str, metric: dict[str, Any]) -> str:
+def _reference_ok_tokens(
+    prefix: str,
+    result: MetricResult,
+    is_yield: bool,
+    settings: dict[str, Any],
+) -> dict[str, str]:
+    """日本市場3指標(参考情報・スコア対象外)用。stripe/fig-cは生の騰落方向のみで判定する。"""
+    value_str, change_str, raw_dir = _format_value_and_change(result, is_yield, settings)
+    fig_class = _raw_direction_class(raw_dir)
+    stripe_class = {"up": "tail", "down": "head", "flat": ""}[fig_class]
+
+    note = (
+        f"前日比 {change_str}（{result.timestamp}時点、source={result.source}）。"
+        "参考情報として表示しており、総合スコアには含まれません。詳しい解説はAI分析実装後に追加予定です。"
+    )
+    impact = "参考情報（総合スコアには含まれません）。セクターへの影響分析は後続ステップで実装予定です。"
+
+    return {
+        f"{prefix}_STRIPE_CLASS": stripe_class,
+        f"{prefix}_VALUE": value_str,
+        f"{prefix}_FIG_CLASS": fig_class,
+        f"{prefix}_CHANGE": change_str,
+        f"{prefix}_NOTE": note,
+        f"{prefix}_IMPACT_CLASS": "",
+        f"{prefix}_IMPACT": impact,
+    }
+
+
+def _pattern_fragment(label: str, metric: dict[str, Any]) -> str:
     if metric["status"] != "ok":
         return f"<span class=\"f\">{label} 取得失敗</span>"
     score = metric["score"]
@@ -129,12 +176,23 @@ def _pattern_fragment(prefix: str, label: str, metric: dict[str, Any]) -> str:
     return f'<span class="{cls}">{label} {arrow}</span>'
 
 
+def _sample_date(*groups: dict[str, MetricResult], fallback: str) -> str:
+    for group in groups:
+        for m in group.values():
+            if m.status == "OK" and m.timestamp:
+                return m.timestamp
+    return fallback
+
+
 def build_context(
-    metric_results: dict[str, MetricResult],
+    metric_results: dict[str, dict[str, MetricResult]],
     score_out: dict[str, Any],
     settings: dict[str, Any],
     now: datetime,
 ) -> dict[str, str]:
+    overseas = metric_results["overseas"]
+    japan = metric_results["japan"]
+
     weekday = now.weekday()  # 0=Mon .. 6=Sun
     is_weekend = weekday >= 5
 
@@ -157,8 +215,9 @@ def build_context(
 
     context["HEADLINE"] = f"自動生成レポート：総合スコア{score:+d}（{verdict}）"
     context["SUBTITLE"] = (
-        f"{available}/{total}指標を自動取得し、±0.2%ルール・bp閾値でスコアを計算した暫定版です。"
-        "AIによる見出し・解説文の生成はまだ実装されていません（後続ステップで対応予定）。"
+        f"{available}/{total}指標（海外）を自動取得し、±0.2%ルール・bp閾値でスコアを計算した暫定版です。"
+        "日本市場3指標（日経225先物・TOPIX連動ETF・日本10年債）は参考情報として掲載していますが、"
+        "総合スコアには含まれません。AIによる見出し・解説文の生成はまだ実装されていません（後続ステップで対応予定）。"
     )
 
     color_map = {"追い風": "var(--up)", "逆風": "var(--down)"}
@@ -192,17 +251,12 @@ def build_context(
     context["GAUGE_TRACK"] = "".join(segs)
     context["GAUGE_ARIA"] = f"総合スコア{score:+d}（{verdict}）。レンジはマイナス5からプラス5"
 
-    # 実データの日付タグ（取得できた指標の代表的なtimestampを使う。無ければ生成日時）
-    sample_date = next(
-        (m.timestamp for m in metric_results.values() if m.status == "OK" and m.timestamp),
-        now.strftime("%Y-%m-%d"),
-    )
-    context["OVERSEAS_TAG"] = f"自動取得（{sample_date}時点）"
-    context["JAPAN_TAG"] = "未実装（STEP5）"
+    context["OVERSEAS_TAG"] = f"自動取得（{_sample_date(overseas, fallback=now.strftime('%Y-%m-%d'))}時点）"
+    context["JAPAN_TAG"] = f"自動取得（{_sample_date(japan, fallback=now.strftime('%Y-%m-%d'))}時点・参考情報）"
 
-    # 5指標（自動取得・スコア計算済み）
+    # 海外5指標（自動取得・スコア計算済み）
     for key, (prefix, is_yield) in SCORED_ROW_PREFIXES.items():
-        result = metric_results.get(key)
+        result = overseas.get(key)
         mscore = score_out["metrics"][key]
         if result is None or result.status != "OK" or mscore["status"] != "ok":
             error = result.error if result else "not fetched"
@@ -210,13 +264,22 @@ def build_context(
         else:
             context.update(_ok_tokens(prefix, result, mscore["score"], is_yield, settings))
 
-    # 未実装の6指標（S&P500・NYダウ・日経225先物・日経平均・TOPIX・日本10年債）
+    # 日本市場3指標（STEP5で追加、参考情報・スコア対象外）
+    for key, (prefix, is_yield) in REFERENCE_ROW_PREFIXES.items():
+        result = japan.get(key)
+        if result is None or result.status != "OK":
+            error = result.error if result else "not fetched"
+            context.update(_unavailable_tokens(prefix, error))
+        else:
+            context.update(_reference_ok_tokens(prefix, result, is_yield, settings))
+
+    # 現時点で自動取得の対象外（後続ステップで対応）：S&P500・NYダウ・日経平均
     for prefix in NOT_IMPLEMENTED_PREFIXES:
         context.update(_not_implemented_tokens(prefix))
 
-    # 組み合わせの読み（機械的に生成、AI解釈はまだ実装しない）
+    # 組み合わせの読み（機械的に生成、AI解釈はまだ実装しない。海外5指標のみ・日本側は含めない）
     context["PATTERN_LINE"] = " ／ ".join(
-        _pattern_fragment(SCORED_ROW_PREFIXES[key][0], score_out["metrics"][key]["label"], score_out["metrics"][key])
+        _pattern_fragment(score_out["metrics"][key]["label"], score_out["metrics"][key])
         for key in SCORED_METRICS
     )
     context["COMBO_TEXT"] = (
@@ -224,7 +287,7 @@ def build_context(
         "各指標のスコア内訳は下記「スコアの付け方」セクションをご確認ください。"
     )
 
-    # 今週の重要イベント（STEP6で自動取得予定、STEP4では未実装）
+    # 今週の重要イベント（STEP6で自動取得予定、現時点では未実装）
     context["EVENTS_TAG"] = "未実装"
     context["EVENTS_BLOCK"] = (
         '      <div class="ev">\n'
@@ -236,7 +299,7 @@ def build_context(
         "      </div>"
     )
 
-    # スコアの付け方（データから機械的に生成）
+    # スコアの付け方（データから機械的に生成、対象は海外5指標のみ）
     context["BOND_THRESHOLD_BP"] = str(settings["bond_yield_threshold_bp"])
     bullets = [
         f"<li>今回：{'／'.join(parts)} ＝ <strong>合計 {score:+d}（{verdict}）</strong></li>"
@@ -253,7 +316,11 @@ def build_context(
             f"<li><strong>{available}/{total}指標のみ取得できたため、暫定スコアとして表示しています。</strong></li>"
         )
     bullets.append(
-        "<li>S&amp;P500・NYダウ・日本側の指標（日経225先物・日経平均・TOPIX・日本10年債）は現時点で自動取得未実装のため「未実装」と表示し、スコアには含めていません（STEP5で対応予定）。</li>"
+        "<li>日本市場3指標（日経225先物・TOPIX連動ETF・日本10年債）は参考情報として表示していますが、"
+        "総合スコアには含めていません。</li>"
+    )
+    bullets.append(
+        "<li>S&amp;P500・NYダウ・日経平均は現時点で自動取得未実装のため「未実装」と表示し、スコアには含めていません。</li>"
     )
     context["SCORE_RULE_BULLETS"] = "\n".join(f"        {b}" for b in bullets)
 
@@ -270,7 +337,7 @@ def render(template: str, context: dict[str, str]) -> str:
 
 
 def generate_report(
-    metric_results: dict[str, MetricResult],
+    metric_results: dict[str, dict[str, MetricResult]],
     score_out: dict[str, Any],
     settings: dict[str, Any],
     output_dir: Path | None = None,

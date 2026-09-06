@@ -1,4 +1,4 @@
-"""STEP4: HTML生成のテスト。ネットワークアクセスは一切行わない。"""
+"""STEP4+STEP5: HTML生成のテスト。ネットワークアクセスは一切行わない。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ SETTINGS = {"score_threshold_percent": 0.2, "bond_yield_threshold_bp": 3}
 JST = ZoneInfo("Asia/Tokyo")
 
 
-def _ok(key, label, *, change_percent=None, change_bp=None, value=100.0, timestamp="2026-09-04"):
+def _ok(key, label, *, change_percent=None, change_bp=None, value=100.0, timestamp="2026-09-04", source=None):
     return MetricResult(
         key=key,
         label=label,
@@ -24,12 +24,12 @@ def _ok(key, label, *, change_percent=None, change_bp=None, value=100.0, timesta
         change=change_percent or change_bp or 0,
         change_percent=change_percent,
         change_bp=change_bp,
-        source=f"test:{key}",
+        source=source or f"test:{key}",
         timestamp=timestamp,
     )
 
 
-def _all_ok_results():
+def _all_ok_overseas():
     return {
         "nasdaq": _ok("nasdaq", "Nasdaq総合", value=26506.99, change_percent=-0.29),
         "sox": _ok("sox", "SOX", value=11735.26, change_percent=3.38),
@@ -39,9 +39,29 @@ def _all_ok_results():
     }
 
 
+def _all_ok_japan():
+    return {
+        "nikkei_futures": _ok(
+            "nikkei_futures", "日経225先物", value=65820.0, change_percent=1.77,
+            timestamp="2026-09-05", source="yfinance_snapshot:NKD=F@Asia/Tokyo05",
+        ),
+        "topix_etf": _ok(
+            "topix_etf", "TOPIX連動ETF（1306.T）", value=427.5, change_percent=0.07,
+            source="yfinance:1306.T",
+        ),
+        "japan10y": _ok(
+            "japan10y", "日本10年国債利回り", value=2.966, change_bp=-4.0, source="mof_jgb10y"
+        ),
+    }
+
+
+def _all_ok_results():
+    return {"overseas": _all_ok_overseas(), "japan": _all_ok_japan()}
+
+
 def _generate(tmp_path, results, now=None):
     now = now or datetime(2026, 9, 4, 7, 0, tzinfo=JST)  # 平日固定（テストの再現性のため）
-    score_out = compute_score(results, SETTINGS)
+    score_out = compute_score(results["overseas"], SETTINGS)
     path = generate_report(results, score_out, SETTINGS, output_dir=tmp_path, now=now)
     return path, score_out
 
@@ -87,7 +107,7 @@ def test_score_and_total_score_present(tmp_path):
 
 def test_missing_metric_shows_unavailable_not_fabricated_number(tmp_path):
     results = _all_ok_results()
-    results["usdjpy"] = MetricResult(
+    results["overseas"]["usdjpy"] = MetricResult(
         key="usdjpy", label="ドル円", status="ERROR", error="no NY17:00 snapshot"
     )
     path, score_out = _generate(tmp_path, results)
@@ -103,8 +123,8 @@ def test_not_yet_implemented_indicators_show_as_such_not_fake_numbers(tmp_path):
     results = _all_ok_results()
     path, _ = _generate(tmp_path, results)
     html = path.read_text(encoding="utf-8")
-    # S&P500/NYダウ/日本側4指標はSTEP4では未実装であり、でっち上げ数値を入れない
-    assert html.count("未実装") >= 6
+    # S&P500/NYダウ/日経平均は現時点で未実装であり、でっち上げ数値を入れない
+    assert html.count("未実装") >= 3
 
 
 def test_no_leftover_placeholder_tokens(tmp_path):
@@ -134,3 +154,42 @@ def test_weekend_edition_and_next_monday_note(tmp_path):
     html = path.read_text(encoding="utf-8")
     assert "週末版" in html
     assert "次回09/07(月)" in html
+
+
+# --- STEP5: 日本市場3指標(参考情報・スコア対象外) ---------------------------
+
+def test_japan_reference_indicators_values_present(tmp_path):
+    results = _all_ok_results()
+    path, _ = _generate(tmp_path, results)
+    html = path.read_text(encoding="utf-8")
+    assert "65,820.00" in html and "1.77%" in html   # 日経225先物
+    assert "427.50" in html and "0.07%" in html       # TOPIX連動ETF
+    assert "2.966%" in html and "4.0bp" in html        # 日本10年債
+
+
+def test_topix_is_labeled_as_etf_proxy_not_the_index_itself(tmp_path):
+    results = _all_ok_results()
+    path, _ = _generate(tmp_path, results)
+    html = path.read_text(encoding="utf-8")
+    assert "TOPIX連動ETF（1306.T）" in html
+
+
+def test_japan_reference_indicators_marked_as_excluded_from_score(tmp_path):
+    results = _all_ok_results()
+    path, _ = _generate(tmp_path, results)
+    html = path.read_text(encoding="utf-8")
+    assert html.count("総合スコアには含まれません") >= 3
+
+
+def test_japan_indicator_failure_does_not_change_overseas_score(tmp_path):
+    results = _all_ok_results()
+    results["japan"]["nikkei_futures"] = MetricResult(
+        key="nikkei_futures", label="日経225先物", status="ERROR", error="CME snapshot missing"
+    )
+    path, score_out = _generate(tmp_path, results)
+    html = path.read_text(encoding="utf-8")
+    # 海外5指標は全件取得できているので、日本側の欠損に関わらずスコアは5指標分のまま
+    assert score_out["available"] == 5
+    assert score_out["total"] == 5
+    assert score_out["provisional"] is False
+    assert "CME snapshot missing" in html

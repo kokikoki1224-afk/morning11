@@ -459,7 +459,7 @@ footer{
       <div class="row">
         <div class="stripe {{TOPIX_STRIPE_CLASS}}"></div>
         <div class="row-main">
-          <div class="row-name"><span class="rank num">10</span><strong>TOPIX</strong></div>
+          <div class="row-name"><span class="rank num">10</span><strong>TOPIX連動ETF（1306.T）</strong></div>
           <div class="row-note">{{TOPIX_NOTE}}</div>
         </div>
         <div class="row-fig">
@@ -518,9 +518,12 @@ footer{
       <a href="https://finance.yahoo.com/quote/JPY=X/">Yahoo Finance（ドル円 JPY=X、時間足からNY17:00基準で算出）</a>
       <a href="https://finance.yahoo.com/quote/%5EKS11/">Yahoo Finance（KOSPI ^KS11）</a>
       <a href="https://fred.stlouisfed.org/series/DGS10">FRED（米10年債利回り DGS10）</a>
+      <a href="https://finance.yahoo.com/quote/NKD=F/">Yahoo Finance（日経225先物 NKD=F、CME近似値・時間足からJST05:00基準で算出）</a>
+      <a href="https://finance.yahoo.com/quote/1306.T/">Yahoo Finance（TOPIX連動ETF 1306.T）</a>
+      <a href="https://www.mof.go.jp/jgbs/reference/interest_rate/index.htm">財務省（国債金利情報、日本10年債利回り）</a>
       <a href="https://github.com/kokikoki1224-afk/morning11">GitHubリポジトリ（本レポートの生成コード）</a>
     </div>
-    <div class="disc">本ページは <code>data/market.py</code>（データ取得）→ <code>analysis/score.py</code>（±0.2%ルール・bp閾値によるスコア計算）→ <code>generator/html.py</code>（HTML生成）のパイプラインでGitHub Actionsにより自動生成されています（生成日時: {{GENERATED_AT}}）。現時点ではAIによる文章解釈は未実装で、見出し・コメント欄は機械的な定型文です。S&amp;P500・NYダウ・日経225先物・日経平均・TOPIX・日本10年債は自動取得の対象外（未実装）のため、値・コメント欄は「未実装」と表示しています。取得に失敗した指標があれば「取得失敗」と明示し、推測値では補いません。数値はリアルタイム価格ではありません。本ページは情報提供を目的としたもので、特定の銘柄の売買を推奨するものではありません。投資判断はご自身の責任でお願いします。</div>
+    <div class="disc">本ページは <code>data/market.py</code>（データ取得）→ <code>analysis/score.py</code>（±0.2%ルール・bp閾値によるスコア計算）→ <code>generator/html.py</code>（HTML生成）のパイプラインでGitHub Actionsにより自動生成されています（生成日時: {{GENERATED_AT}}）。現時点ではAIによる文章解釈は未実装で、見出し・コメント欄は機械的な定型文です。日本市場3指標（日経225先物・TOPIX連動ETF・日本10年債）は参考情報として掲載していますが、総合スコアには含まれません。TOPIXは指数そのものではなく連動ETF（1306.T）を代理指標として使用しています。S&amp;P500・NYダウ・日経平均は現時点で自動取得の対象外（未実装）のため、値・コメント欄は「未実装」と表示しています。取得を試みて失敗した指標があれば「取得失敗」と明示し、推測値では補いません。数値はリアルタイム価格ではありません。本ページは情報提供を目的としたもので、特定の銘柄の売買を推奨するものではありません。投資判断はご自身の責任でお願いします。</div>
   </footer>
 
 </div>

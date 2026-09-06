@@ -1,7 +1,9 @@
 """日本株モーニング11 自動化 - エントリポイント。
 
-現時点のスコープ（STEP2+STEP3+STEP4）: Nasdaq / SOX / 米10年債利回り / USD/JPY / KOSPI の
-自動取得、±0.2%ルール・bp閾値ルールによるスコア計算、および既存デザインのHTMLへの埋め込みまで。
+現時点のスコープ（STEP2+STEP3+STEP4+STEP5）:
+- 海外5指標（Nasdaq/SOX/米10年債/USD-JPY/KOSPI）の自動取得＋±0.2%ルール・bp閾値によるスコア計算
+- 日本市場3指標（日経225先物/TOPIX連動ETF/日本10年債）の自動取得（総合スコアには含めない参考情報）
+- 既存デザインのHTMLへの埋め込み
 AI分析・イベントカレンダー・GitHub Actions/Pagesは未実装（後続ステップ）。
 
 使い方:
@@ -35,22 +37,31 @@ def log_result(result: market.MetricResult) -> None:
         print(f"[ERROR] {result.label} data unavailable ({result.error})", file=sys.stderr)
 
 
-def fetch_and_score() -> tuple[dict[str, market.MetricResult], dict, dict]:
+def fetch_and_score() -> tuple[dict[str, dict[str, market.MetricResult]], dict, dict]:
     settings = market.load_settings()
-    results = market.fetch_all(settings)
+    results = market.fetch_all(settings)  # {"overseas": {...5指標}, "japan": {...3指標(参考)}}
+
+    print("[海外5指標（総合スコア対象）]")
     ok_count = 0
     for key in ("nasdaq", "sox", "us10y", "usdjpy", "kospi"):
-        result = results.get(key)
+        result = results["overseas"].get(key)
         if result is None:
             print(f"[ERROR] {key}: 設定に見つかりません", file=sys.stderr)
             continue
         log_result(result)
         if result.status == "OK":
             ok_count += 1
+    print(f"--- {ok_count}/{len(results['overseas'])} 指標を取得できました ---")
 
-    print(f"--- {ok_count}/{len(results)} 指標を取得できました ---")
+    print("[日本市場3指標（参考情報・スコア対象外）]")
+    for key in ("nikkei_futures", "topix_etf", "japan10y"):
+        result = results["japan"].get(key)
+        if result is None:
+            print(f"[ERROR] {key}: 設定に見つかりません", file=sys.stderr)
+            continue
+        log_result(result)
 
-    score_out = compute_score(results, settings)
+    score_out = compute_score(results["overseas"], settings)
     print(f"[OK] Score: {score_out['verdict_label']}")
     for key, m in score_out["metrics"].items():
         if m["status"] == "ok":

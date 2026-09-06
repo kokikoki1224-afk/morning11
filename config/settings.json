@@ -1,7 +1,7 @@
 {
   "score_threshold_percent": 0.2,
   "bond_yield_threshold_bp": 3,
-  "sources": {
+  "overseas": {
     "nasdaq": {
       "label": "Nasdaq総合",
       "primary": {"provider": "yfinance", "symbol": "^IXIC"},
@@ -21,14 +21,46 @@
     },
     "usdjpy": {
       "label": "ドル円",
-      "primary": {"provider": "yfinance_ny17", "symbol": "JPY=X"},
+      "primary": {
+        "provider": "yfinance_snapshot",
+        "symbol": "JPY=X",
+        "tz": "America/New_York",
+        "hour": 17,
+        "field": "Open"
+      },
       "fallback": null,
-      "_note": "日足(interval=1d)は24時間連続取引ゆえに集計区間がずれ前日比の符号が逆転する不具合を確認したため不採用。時間足からNY17時(米東部時間)のスナップショットを抽出する方式に変更(README参照)"
+      "_note": "日足(interval=1d)は24時間連続取引ゆえに集計区間がずれ前日比の符号が逆転する不具合を確認したため不採用。時間足からNY17時(米東部時間)のスナップショット(そのバーの始値=ちょうど17:00の値)を抽出する方式を正式採用(README参照)"
     },
     "kospi": {
       "label": "KOSPI",
       "primary": {"provider": "yfinance", "symbol": "^KS11"},
       "fallback": null
+    }
+  },
+  "japan": {
+    "nikkei_futures": {
+      "label": "日経225先物",
+      "primary": {
+        "provider": "yfinance_snapshot",
+        "symbol": "NKD=F",
+        "tz": "Asia/Tokyo",
+        "hour": 5,
+        "field": "Close"
+      },
+      "fallback": null,
+      "_note": "STEP5で検証: CME(NKD=F)は日本時間06:00〜07:00頃に日次メンテナンス休止があり、JST05:00台の終値がその休止直前(=大取夜間取引終了に相当)の値として妥当と確認(README参照)。単純な日足Closeは使わない"
+    },
+    "topix_etf": {
+      "label": "TOPIX連動ETF（1306.T）",
+      "primary": {"provider": "yfinance", "symbol": "1306.T"},
+      "fallback": null,
+      "_note": "^TOPX/^TPXはSTEP2検証時点で取得不可(データなし)。TOPIX指数そのものではなくETFの代理指標である点をHTML上でも明示する"
+    },
+    "japan10y": {
+      "label": "日本10年国債利回り",
+      "primary": {"provider": "mof_jgb10y"},
+      "fallback": null,
+      "_note": "財務省公式CSV(国債金利情報)を使用。無料・公式・キー不要。10年債列(基準日の次から10番目の値)を抽出"
     }
   }
 }
