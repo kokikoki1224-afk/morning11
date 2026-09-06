@@ -1,0 +1,528 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style></head><body>
+
+<title>日本株モーニング11</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script>
+(function(){try{if(!document.querySelector('meta[name="viewport"]')){var m=document.createElement('meta');m.name='viewport';m.content='width=device-width, initial-scale=1, viewport-fit=cover';document.head.appendChild(m);}}catch(e){}})();
+</script>
+
+<style>
+/* ============ tokens ============ */
+:root{
+  --ground:#F5F3EE;
+  --surface:#FFFFFF;
+  --surface-2:#EDEAE2;
+  --ink:#1A1C22;
+  --ink-2:#454956;
+  --muted:#717686;
+  --rule:#DFDBD1;
+  --rule-soft:#EAE6DD;
+  --brass:#8A6510;
+  --brass-line:#C9A748;
+  --up:#B93526;
+  --up-soft:#F8E4E0;
+  --down:#2264A8;
+  --down-soft:#DEEAF7;
+  --flat:#6A6F7F;
+  --flat-soft:#E8E5DE;
+  --shadow:0 1px 2px rgba(26,28,34,.05), 0 8px 24px -16px rgba(26,28,34,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#111319; --surface:#181B22; --surface-2:#1E222B;
+    --ink:#EAE8E2; --ink-2:#BCC0CB; --muted:#9096A6;
+    --rule:#272C36; --rule-soft:#1F242D;
+    --brass:#DCBA68; --brass-line:#7A6226;
+    --up:#EE7266; --up-soft:#341F1C;
+    --down:#78B0E6; --down-soft:#162835;
+    --flat:#9096A6; --flat-soft:#21252E;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#111319; --surface:#181B22; --surface-2:#1E222B;
+  --ink:#EAE8E2; --ink-2:#BCC0CB; --muted:#9096A6;
+  --rule:#272C36; --rule-soft:#1F242D;
+  --brass:#DCBA68; --brass-line:#7A6226;
+  --up:#EE7266; --up-soft:#341F1C;
+  --down:#78B0E6; --down-soft:#162835;
+  --flat:#9096A6; --flat-soft:#21252E;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+
+/* ============ base = mobile ============ */
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic UI",system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.8;
+  -webkit-font-smoothing:antialiased;
+  overflow-wrap:break-word;
+}
+.wrap{
+  max-width:760px;
+  margin:0 auto;
+  padding:0 15px calc(64px + env(safe-area-inset-bottom));
+  display:flex;
+  flex-direction:column;
+  gap:30px;
+}
+.num{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+/* ---------- masthead ---------- */
+.masthead{padding-top:26px;display:flex;flex-direction:column;gap:13px}
+.dateline{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:7px 12px;
+  padding-bottom:11px;border-bottom:1px solid var(--rule);
+}
+.dateline .d{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;
+  color:var(--muted);text-transform:uppercase;
+}
+.dateline .next{margin-left:auto}
+.edition{
+  font-size:11px;letter-spacing:.14em;font-weight:700;color:var(--brass);
+  border:1px solid var(--brass-line);border-radius:2px;padding:2px 8px;
+}
+h1{
+  font-family:"Shippori Mincho","Yu Mincho",serif;font-weight:700;
+  font-size:clamp(27px,7.4vw,40px);line-height:1.25;letter-spacing:.01em;
+  margin:0;text-wrap:balance;
+}
+.sub{margin:0;color:var(--ink-2);font-size:14.5px;line-height:1.75;max-width:62ch}
+.fwdlink{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  min-height:48px;padding:10px 14px;
+  font-size:14px;font-weight:500;color:var(--ink-2);text-decoration:none;
+  background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+}
+.fwdlink:active{background:var(--surface-2)}
+.fwdlink:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.fwdlink .arw{color:var(--brass);font-family:"IBM Plex Mono",monospace;font-size:16px;flex:none}
+
+/* ---------- verdict ---------- */
+.verdict{
+  background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.verdict-top{padding:18px 16px 16px;display:flex;flex-direction:column;gap:11px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--muted)}
+.verdict-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.verdict-word{
+  font-family:"Shippori Mincho","Yu Mincho",serif;
+  font-size:clamp(28px,8vw,34px);font-weight:700;line-height:1.1;color:var(--up);
+}
+.verdict-score{
+  font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:600;
+  color:var(--ink-2);background:var(--surface-2);border-radius:2px;padding:3px 10px;
+}
+.verdict-thesis{margin:0;font-size:15px;line-height:1.8;color:var(--ink);max-width:58ch}
+.verdict-thesis b{font-weight:700;border-bottom:2px solid var(--brass-line)}
+
+.gauge{
+  padding:14px 16px 17px;border-top:1px solid var(--rule-soft);
+  background:var(--surface-2);display:flex;flex-direction:column;gap:8px;
+}
+.gauge-track{display:flex;gap:3px}
+.seg{flex:1;height:13px;border-radius:1px;background:var(--rule)}
+.seg.neg{background:var(--down-soft)}
+.seg.pos{background:var(--up-soft)}
+.seg.on{background:var(--flat);box-shadow:0 0 0 2px var(--surface-2),0 0 0 3px var(--flat)}
+.gauge-labels{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.06em;color:var(--muted)}
+.gauge-labels .l{color:var(--down)}
+.gauge-labels .r{color:var(--up)}
+
+/* ---------- sections ---------- */
+section{display:flex;flex-direction:column;gap:14px}
+h2{
+  font-family:"Shippori Mincho","Yu Mincho",serif;font-size:19px;font-weight:700;
+  margin:0;padding-bottom:8px;border-bottom:1px solid var(--rule);
+  display:flex;align-items:baseline;gap:10px;
+}
+h2 .tag{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:500;
+  letter-spacing:.08em;color:var(--muted);margin-left:auto;
+}
+
+/* ---------- indicator rows ---------- */
+.rows{display:flex;flex-direction:column;gap:9px}
+.row{
+  display:grid;grid-template-columns:4px 1fr;
+  background:var(--surface);border:1px solid var(--rule);
+  border-radius:3px;overflow:hidden;
+}
+.stripe{background:var(--flat)}
+.stripe.tail{background:var(--up)}
+.stripe.head{background:var(--down)}
+
+.row-main{padding:12px 14px 0;display:flex;flex-direction:column;gap:6px;min-width:0}
+.row-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rank{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;color:var(--brass);
+  border:1px solid var(--brass-line);border-radius:2px;padding:1px 5px;line-height:1.5;flex:none;
+}
+.row-name strong{font-size:16.5px;font-weight:700;line-height:1.4}
+.row-note{font-size:14px;color:var(--ink-2);line-height:1.75}
+.row-note em{font-style:normal;color:var(--muted)}
+
+.row-fig{
+  grid-column:2;padding:9px 14px 0;
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+}
+.fig-v{font-size:21px;font-weight:600;line-height:1.2}
+.fig-c{font-size:14px;font-weight:600;padding:2px 8px;border-radius:2px}
+.fig-c.up{color:var(--up);background:var(--up-soft)}
+.fig-c.down{color:var(--down);background:var(--down-soft)}
+.fig-c.flat{color:var(--flat);background:var(--flat-soft)}
+
+.impact{
+  grid-column:2;margin:11px 14px 12px 0;
+  padding:9px 12px;border-radius:2px;font-size:13.5px;line-height:1.7;
+  background:var(--flat-soft);color:var(--ink-2);border-left:3px solid var(--flat);
+}
+.impact.tail{background:var(--up-soft);border-left-color:var(--up)}
+.impact.head{background:var(--down-soft);border-left-color:var(--down)}
+.impact b{font-weight:700;color:var(--ink)}
+
+/* ---------- read ---------- */
+.read{
+  background:var(--surface);border:1px solid var(--rule);
+  border-left:3px solid var(--brass-line);border-radius:3px;
+  padding:17px 16px;display:flex;flex-direction:column;gap:13px;
+}
+.read p{margin:0;font-size:14.5px;line-height:1.85;max-width:62ch}
+.read .pattern{
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:2.1;
+  color:var(--ink-2);background:var(--surface-2);border-radius:2px;
+  padding:10px 12px;overflow-x:auto;white-space:nowrap;
+  -webkit-overflow-scrolling:touch;
+}
+.read .pattern .u{color:var(--up);font-weight:600}
+.read .pattern .d{color:var(--down);font-weight:600}
+.read .pattern .f{color:var(--flat);font-weight:600}
+
+/* ---------- timeline ---------- */
+.tl{display:flex;flex-direction:column}
+.ev{
+  display:grid;grid-template-columns:56px 1fr;gap:0 12px;
+  padding:12px 0;border-bottom:1px solid var(--rule-soft);
+}
+.ev:last-child{border-bottom:none}
+.ev-d{
+  font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;color:var(--muted);
+  padding-top:3px;padding-right:10px;border-right:1px solid var(--rule);text-align:right;
+}
+.ev-d span{display:block;font-size:11px;font-weight:400}
+.ev-b{display:flex;flex-direction:column;gap:5px;min-width:0}
+.ev-t{font-size:15px;font-weight:500;line-height:1.65}
+.ev.key .ev-t{font-weight:700}
+.ev.key .ev-d{color:var(--brass)}
+.ev-n{font-size:13px;color:var(--muted);line-height:1.7}
+.star{color:var(--brass);font-weight:700;margin-right:2px}
+
+/* ---------- note ---------- */
+.note{
+  background:var(--surface-2);border:1px solid var(--rule);border-radius:3px;
+  padding:16px;font-size:13.5px;color:var(--ink-2);line-height:1.9;
+  display:flex;flex-direction:column;gap:9px;
+}
+.note h3{margin:0;font-size:11.5px;letter-spacing:.14em;font-weight:700;color:var(--muted)}
+.note code{
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;background:var(--surface);
+  border:1px solid var(--rule);border-radius:2px;padding:1px 5px;
+}
+.note ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px}
+.note strong{color:var(--ink)}
+
+/* ---------- footer ---------- */
+footer{
+  border-top:1px solid var(--rule);padding-top:18px;font-size:13px;
+  color:var(--muted);line-height:1.85;display:flex;flex-direction:column;gap:11px;
+}
+.f-lbl{font-size:11.5px;letter-spacing:.14em;font-weight:700;color:var(--muted)}
+.srcs{display:flex;flex-wrap:wrap;gap:7px}
+.srcs a{
+  display:inline-flex;align-items:center;min-height:38px;padding:6px 11px;
+  font-size:13px;color:var(--ink-2);text-decoration:none;
+  background:var(--surface);border:1px solid var(--rule);border-radius:2px;
+}
+.srcs a:active{background:var(--surface-2)}
+.srcs a:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.disc{padding-top:10px;border-top:1px solid var(--rule-soft);font-size:12.5px;line-height:1.8}
+
+/* ============ desktop ============ */
+@media (min-width:640px){
+  body{font-size:15px;line-height:1.75}
+  .wrap{padding:0 24px 80px;gap:38px}
+  .masthead{padding-top:34px}
+  .fwdlink{display:inline-flex;justify-content:flex-start;align-self:flex-start;min-height:0;padding:6px 13px;font-size:12.5px}
+  .verdict-top{padding:22px 24px 18px}
+  .gauge{padding:16px 24px 20px}
+  .verdict-thesis{font-size:15px}
+  .row{grid-template-columns:4px 1fr auto}
+  .row-main{padding:13px 0 0 16px;gap:5px}
+  .row-name strong{font-size:15.5px}
+  .row-note{font-size:13px;line-height:1.65}
+  .row-fig{
+    grid-column:3;grid-row:1;padding:14px 16px 0 16px;
+    flex-direction:column;align-items:flex-end;gap:4px;flex-wrap:nowrap;white-space:nowrap;
+  }
+  .fig-v{font-size:16px}
+  .fig-c{font-size:12.5px;padding:1px 7px}
+  .impact{grid-column:2 / 4;margin:12px 16px 13px;font-size:12.5px;line-height:1.6;border-left-width:2px}
+  .read{padding:20px 22px}
+  .read p{font-size:15px;line-height:1.75}
+  .read .pattern{font-size:13px;white-space:pre}
+  .ev{grid-template-columns:74px 1fr;gap:0 18px;padding:13px 0}
+  .ev-d{padding-right:14px;font-size:12.5px}
+  .ev-t{font-size:14.5px}
+  .ev-n{font-size:12.5px}
+  .note{padding:17px 20px;font-size:13px;line-height:1.85}
+  footer{font-size:12px;padding-top:20px}
+  .srcs{gap:6px}
+  .srcs a{min-height:0;padding:3px 9px;font-size:12px}
+  .disc{font-size:12px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="dateline">
+      <span class="d">{{DATELINE}}</span>
+      <span class="edition">{{EDITION}}</span>
+      <span class="d next">{{NEXT_NOTE}}</span>
+    </div>
+    <h1>{{HEADLINE}}</h1>
+    <p class="sub">{{SUBTITLE}}</p>
+    <a class="fwdlink" href="https://claude.ai/code/artifact/8a2a56d4-417e-449e-93b1-b4b9793f14c2"><span>セクター判定に変換 ：日本株セクター羅針盤</span><span class="arw">→</span></a>
+  </header>
+
+  <div class="verdict">
+    <div class="verdict-top">
+      <div class="eyebrow">総合判定</div>
+      <div class="verdict-line">
+        <span class="verdict-word" style="color:{{VERDICT_COLOR}}">{{VERDICT_WORD}}</span>
+        <span class="verdict-score num">{{SCORE_LABEL}}</span>
+      </div>
+      <p class="verdict-thesis">{{VERDICT_THESIS}}</p>
+    </div>
+    <div class="gauge">
+      <div class="gauge-track" role="img" aria-label="{{GAUGE_ARIA}}">
+        {{GAUGE_TRACK}}
+      </div>
+      <div class="gauge-labels">
+        <span class="l">−5 警戒</span>
+        <span>0</span>
+        <span class="r">追い風 +5</span>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <h2>海外 <span class="tag">{{OVERSEAS_TAG}}</span></h2>
+    <div class="rows">
+
+      <div class="row">
+        <div class="stripe {{NASDAQ_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">01</span><strong>Nasdaq総合</strong></div>
+          <div class="row-note">{{NASDAQ_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{NASDAQ_VALUE}}</span>
+          <span class="fig-c {{NASDAQ_FIG_CLASS}} num">{{NASDAQ_CHANGE}}</span>
+        </div>
+        <div class="impact {{NASDAQ_IMPACT_CLASS}}">{{NASDAQ_IMPACT}}</div>
+      </div>
+
+      <div class="row">
+        <div class="stripe {{SP500_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">02</span><strong>S&amp;P500</strong></div>
+          <div class="row-note">{{SP500_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{SP500_VALUE}}</span>
+          <span class="fig-c {{SP500_FIG_CLASS}} num">{{SP500_CHANGE}}</span>
+        </div>
+        <div class="impact {{SP500_IMPACT_CLASS}}">{{SP500_IMPACT}}</div>
+      </div>
+
+      <div class="row">
+        <div class="stripe {{DOW_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">03</span><strong>NYダウ</strong></div>
+          <div class="row-note">{{DOW_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{DOW_VALUE}}</span>
+          <span class="fig-c {{DOW_FIG_CLASS}} num">{{DOW_CHANGE}}</span>
+        </div>
+        <div class="impact {{DOW_IMPACT_CLASS}}">{{DOW_IMPACT}}</div>
+      </div>
+
+      <div class="row">
+        <div class="stripe {{SOX_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">04</span><strong>SOX（半導体）</strong></div>
+          <div class="row-note">{{SOX_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{SOX_VALUE}}</span>
+          <span class="fig-c {{SOX_FIG_CLASS}} num">{{SOX_CHANGE}}</span>
+        </div>
+        <div class="impact {{SOX_IMPACT_CLASS}}">{{SOX_IMPACT}}</div>
+      </div>
+
+      <div class="row">
+        <div class="stripe {{US10Y_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">05</span><strong>米10年債利回り</strong></div>
+          <div class="row-note">{{US10Y_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{US10Y_VALUE}}</span>
+          <span class="fig-c {{US10Y_FIG_CLASS}} num">{{US10Y_CHANGE}}</span>
+        </div>
+        <div class="impact {{US10Y_IMPACT_CLASS}}">{{US10Y_IMPACT}}</div>
+      </div>
+
+      <div class="row">
+        <div class="stripe {{USDJPY_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">06</span><strong>ドル円</strong></div>
+          <div class="row-note">{{USDJPY_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{USDJPY_VALUE}}</span>
+          <span class="fig-c {{USDJPY_FIG_CLASS}} num">{{USDJPY_CHANGE}}</span>
+        </div>
+        <div class="impact {{USDJPY_IMPACT_CLASS}}">{{USDJPY_IMPACT}}</div>
+      </div>
+
+      <div class="row">
+        <div class="stripe {{KOSPI_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">07</span><strong>KOSPI</strong></div>
+          <div class="row-note">{{KOSPI_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{KOSPI_VALUE}}</span>
+          <span class="fig-c {{KOSPI_FIG_CLASS}} num">{{KOSPI_CHANGE}}</span>
+        </div>
+        <div class="impact {{KOSPI_IMPACT_CLASS}}">{{KOSPI_IMPACT}}</div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>日本 <span class="tag">{{JAPAN_TAG}}</span></h2>
+    <div class="rows">
+
+      <div class="row">
+        <div class="stripe {{NKFUT_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">08</span><strong>日経225先物</strong></div>
+          <div class="row-note">{{NKFUT_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{NKFUT_VALUE}}</span>
+          <span class="fig-c {{NKFUT_FIG_CLASS}} num">{{NKFUT_CHANGE}}</span>
+        </div>
+        <div class="impact {{NKFUT_IMPACT_CLASS}}">{{NKFUT_IMPACT}}</div>
+      </div>
+
+      <div class="row">
+        <div class="stripe {{NIKKEI_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">09</span><strong>日経平均</strong></div>
+          <div class="row-note">{{NIKKEI_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{NIKKEI_VALUE}}</span>
+          <span class="fig-c {{NIKKEI_FIG_CLASS}} num">{{NIKKEI_CHANGE}}</span>
+        </div>
+        <div class="impact {{NIKKEI_IMPACT_CLASS}}">{{NIKKEI_IMPACT}}</div>
+      </div>
+
+      <div class="row">
+        <div class="stripe {{TOPIX_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">10</span><strong>TOPIX</strong></div>
+          <div class="row-note">{{TOPIX_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{TOPIX_VALUE}}</span>
+          <span class="fig-c {{TOPIX_FIG_CLASS}} num">{{TOPIX_CHANGE}}</span>
+        </div>
+        <div class="impact {{TOPIX_IMPACT_CLASS}}">{{TOPIX_IMPACT}}</div>
+      </div>
+
+      <div class="row">
+        <div class="stripe {{JGB10Y_STRIPE_CLASS}}"></div>
+        <div class="row-main">
+          <div class="row-name"><span class="rank num">11</span><strong>日本10年債・日銀</strong></div>
+          <div class="row-note">{{JGB10Y_NOTE}}</div>
+        </div>
+        <div class="row-fig">
+          <span class="fig-v num">{{JGB10Y_VALUE}}</span>
+          <span class="fig-c {{JGB10Y_FIG_CLASS}} num">{{JGB10Y_CHANGE}}</span>
+        </div>
+        <div class="impact {{JGB10Y_IMPACT_CLASS}}">{{JGB10Y_IMPACT}}</div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>組み合わせの読み</h2>
+    <div class="read">
+      <div class="pattern">{{PATTERN_LINE}}</div>
+      <p>{{COMBO_TEXT}}</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>今週の重要イベント <span class="tag">{{EVENTS_TAG}}</span></h2>
+    <div class="tl">
+{{EVENTS_BLOCK}}
+    </div>
+  </section>
+
+  <section>
+    <div class="note">
+      <h3>スコアの付け方</h3>
+      <p style="margin:0">海外5指標に <code>+1 / 0 / −1</code> を振って合計する。Nasdaq上昇＝+1、SOX上昇＝+1、米10年金利<strong>低下</strong>＝+1、ドル円上昇（円安）＝+1、KOSPI上昇＝+1。変動幅が±0.2%未満（金利は{{BOND_THRESHOLD_BP}}bp未満）は0とする。合計 <code>+3以上</code> で追い風、<code>−3以下</code> で逆風、その間は中立。S&amp;P500・NYダウ・日本側の指標は参考掲載で、スコアには含めない。</p>
+      <ul>
+{{SCORE_RULE_BULLETS}}
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <div class="f-lbl">出典</div>
+    <div class="srcs">
+      <a href="https://finance.yahoo.com/quote/%5EIXIC/">Yahoo Finance（Nasdaq総合 ^IXIC）</a>
+      <a href="https://finance.yahoo.com/quote/%5ESOX/">Yahoo Finance（SOX指数 ^SOX）</a>
+      <a href="https://finance.yahoo.com/quote/JPY=X/">Yahoo Finance（ドル円 JPY=X、時間足からNY17:00基準で算出）</a>
+      <a href="https://finance.yahoo.com/quote/%5EKS11/">Yahoo Finance（KOSPI ^KS11）</a>
+      <a href="https://fred.stlouisfed.org/series/DGS10">FRED（米10年債利回り DGS10）</a>
+      <a href="https://github.com/kokikoki1224-afk/morning11">GitHubリポジトリ（本レポートの生成コード）</a>
+    </div>
+    <div class="disc">本ページは <code>data/market.py</code>（データ取得）→ <code>analysis/score.py</code>（±0.2%ルール・bp閾値によるスコア計算）→ <code>generator/html.py</code>（HTML生成）のパイプラインでGitHub Actionsにより自動生成されています（生成日時: {{GENERATED_AT}}）。現時点ではAIによる文章解釈は未実装で、見出し・コメント欄は機械的な定型文です。S&amp;P500・NYダウ・日経225先物・日経平均・TOPIX・日本10年債は自動取得の対象外（未実装）のため、値・コメント欄は「未実装」と表示しています。取得に失敗した指標があれば「取得失敗」と明示し、推測値では補いません。数値はリアルタイム価格ではありません。本ページは情報提供を目的としたもので、特定の銘柄の売買を推奨するものではありません。投資判断はご自身の責任でお願いします。</div>
+  </footer>
+
+</div>
+
+</body></html>

@@ -1,11 +1,12 @@
 """日本株モーニング11 自動化 - エントリポイント。
 
-現時点のスコープ（STEP2+STEP3）: Nasdaq / SOX / 米10年債利回り / USD/JPY / KOSPI の
-自動取得、および ±0.2%ルール・bp閾値ルールによるスコア計算まで。
-AI分析・HTML生成・GitHub Actions/Pagesは未実装（後続ステップ）。
+現時点のスコープ（STEP2+STEP3+STEP4）: Nasdaq / SOX / 米10年債利回り / USD/JPY / KOSPI の
+自動取得、±0.2%ルール・bp閾値ルールによるスコア計算、および既存デザインのHTMLへの埋め込みまで。
+AI分析・イベントカレンダー・GitHub Actions/Pagesは未実装（後続ステップ）。
 
 使い方:
     python main.py --test              # 5指標の取得＋スコア計算を行い、結果をログ出力
+    python main.py --generate          # 上記に加え output/ にHTMLを生成する
     python main.py --test --date ...   # 過去日付での再実行は未実装（後続ステップで対応）
 """
 
@@ -20,6 +21,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 
 from analysis.score import compute_score
 from data import market
+from generator.html import generate_report
 
 
 def log_result(result: market.MetricResult) -> None:
@@ -33,20 +35,7 @@ def log_result(result: market.MetricResult) -> None:
         print(f"[ERROR] {result.label} data unavailable ({result.error})", file=sys.stderr)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="日本株モーニング11 自動化")
-    parser.add_argument("--test", action="store_true", help="データ取得のみ試して結果をログ出力する")
-    parser.add_argument("--date", help="過去日付での実行（未実装・後続ステップで対応予定）")
-    args = parser.parse_args()
-
-    if args.date:
-        print(f"[ERROR] --date は未実装です（指定値: {args.date}）", file=sys.stderr)
-        return 1
-
-    if not args.test:
-        print("[ERROR] 現時点では --test のみ対応しています（STEP2）", file=sys.stderr)
-        return 1
-
+def fetch_and_score() -> tuple[dict[str, market.MetricResult], dict, dict]:
     settings = market.load_settings()
     results = market.fetch_all(settings)
     ok_count = 0
@@ -68,6 +57,30 @@ def main() -> int:
             print(f"  {key}: score={m['score']:+d}")
         else:
             print(f"  {key}: unavailable ({m['error']})")
+
+    return results, score_out, settings
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="日本株モーニング11 自動化")
+    parser.add_argument("--test", action="store_true", help="データ取得＋スコア計算を試し、結果をログ出力する")
+    parser.add_argument("--generate", action="store_true", help="データ取得＋スコア計算＋HTML生成まで行う")
+    parser.add_argument("--date", help="過去日付での実行（未実装・後続ステップで対応予定）")
+    args = parser.parse_args()
+
+    if args.date:
+        print(f"[ERROR] --date は未実装です（指定値: {args.date}）", file=sys.stderr)
+        return 1
+
+    if not args.test and not args.generate:
+        print("[ERROR] --test または --generate を指定してください", file=sys.stderr)
+        return 1
+
+    results, score_out, settings = fetch_and_score()
+
+    if args.generate:
+        path = generate_report(results, score_out, settings)
+        print(f"[OK] HTML生成: {path}")
 
     return 0
 
