@@ -168,6 +168,67 @@ def _reference_ok_tokens(
     }
 
 
+WEEKDAY_KANJI = "月火水木金土日"
+
+
+def _event_block(e: dict[str, Any]) -> str:
+    d = datetime.strptime(e["date"], "%Y-%m-%d")
+    weekday_kanji = WEEKDAY_KANJI[d.weekday()]
+    time_str = e["time"] or "時刻未定"
+    is_high = e["importance"] == "high"
+    star = '<span class="star">★</span>' if is_high else ""
+    key_cls = " key" if is_high else ""
+    return (
+        f'      <div class="ev{key_cls}">\n'
+        f'        <div class="ev-d num">{d.strftime("%m/%d")}<span>{weekday_kanji}</span></div>\n'
+        f"        <div class=\"ev-b\">\n"
+        f'          <div class="ev-t">{star}{e["event"]}（{e["country"]}）</div>\n'
+        f'          <div class="ev-n">{time_str} JST ・ 出典: {e["source"]}</div>\n'
+        f"        </div>\n"
+        f"      </div>"
+    )
+
+
+def _empty_event_block(message: str) -> str:
+    return (
+        '      <div class="ev">\n'
+        '        <div class="ev-d num">—</div>\n'
+        '        <div class="ev-b">\n'
+        f'          <div class="ev-t">{message}</div>\n'
+        "          <div class=\"ev-n\">架空のイベントは表示していません。</div>\n"
+        "        </div>\n"
+        "      </div>"
+    )
+
+
+def _events_context(events_out: dict[str, Any]) -> dict[str, str]:
+    """STEP6: data/events.fetch_events() の結果からイベント欄のHTMLを組み立てる。
+
+    ここでは表示整形のみを行い、イベントの意味解釈（日本株への影響等）は一切行わない。
+    取得できなかった場合に架空のイベントで埋めることもしない。
+    """
+    window_start = datetime.strptime(events_out["window_start"], "%Y-%m-%d")
+    window_end = datetime.strptime(events_out["window_end"], "%Y-%m-%d")
+    tag = f"{window_start.strftime('%m/%d')} — {window_end.strftime('%m/%d')}"
+
+    events = events_out.get("events", [])
+    errors = events_out.get("errors", [])
+
+    if events:
+        blocks = [_event_block(e.to_dict()) for e in events]
+        if errors:
+            blocks.append(
+                _empty_event_block(f"一部のイベントソースが取得できませんでした（{'; '.join(errors)}）")
+            )
+    elif errors:
+        blocks = [_empty_event_block(f"イベントデータ取得不可（{'; '.join(errors)}）")]
+    else:
+        days = (window_end.date() - window_start.date()).days
+        blocks = [_empty_event_block(f"直近{days}日以内に登録されている重要イベントはありません")]
+
+    return {"EVENTS_TAG": tag, "EVENTS_BLOCK": "\n".join(blocks)}
+
+
 def _pattern_fragment(label: str, metric: dict[str, Any]) -> str:
     if metric["status"] != "ok":
         return f"<span class=\"f\">{label} 取得失敗</span>"
@@ -189,6 +250,7 @@ def build_context(
     score_out: dict[str, Any],
     settings: dict[str, Any],
     now: datetime,
+    events_out: dict[str, Any],
 ) -> dict[str, str]:
     overseas = metric_results["overseas"]
     japan = metric_results["japan"]
@@ -287,17 +349,9 @@ def build_context(
         "各指標のスコア内訳は下記「スコアの付け方」セクションをご確認ください。"
     )
 
-    # 今週の重要イベント（STEP6で自動取得予定、現時点では未実装）
-    context["EVENTS_TAG"] = "未実装"
-    context["EVENTS_BLOCK"] = (
-        '      <div class="ev">\n'
-        '        <div class="ev-d num">—</div>\n'
-        '        <div class="ev-b">\n'
-        '          <div class="ev-t">イベントカレンダーは未実装です</div>\n'
-        '          <div class="ev-n">経済指標・中央銀行イベントの自動取得はSTEP6以降で実装予定です。</div>\n'
-        "        </div>\n"
-        "      </div>"
-    )
+    # 今週の重要イベント（STEP6: data/events.pyで自動取得。米国主要指標はFRED、
+    # FOMC・日銀等は手動メンテナンスの静的カレンダー。意味解釈はまだ行わない）
+    context.update(_events_context(events_out))
 
     # スコアの付け方（データから機械的に生成、対象は海外5指標のみ）
     context["BOND_THRESHOLD_BP"] = str(settings["bond_yield_threshold_bp"])
@@ -340,6 +394,7 @@ def generate_report(
     metric_results: dict[str, dict[str, MetricResult]],
     score_out: dict[str, Any],
     settings: dict[str, Any],
+    events_out: dict[str, Any],
     output_dir: Path | None = None,
     now: datetime | None = None,
 ) -> Path:
@@ -348,7 +403,7 @@ def generate_report(
     output_dir = output_dir or DEFAULT_OUTPUT_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    context = build_context(metric_results, score_out, settings, now)
+    context = build_context(metric_results, score_out, settings, now, events_out)
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     html = render(template, context)
 

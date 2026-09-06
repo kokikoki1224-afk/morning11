@@ -1,6 +1,80 @@
-# 日本株モーニング11 自動化（STEP5まで）
+# 日本株モーニング11 自動化（STEP6まで）
 
-「日本株モーニング11」（claude.aiのartifactで手動運用中のレポート）と同じスコアリング思想・5指標構成を、GitHub Actionsで毎朝自動実行するための土台。**現時点ではSTEP2（海外5指標の自動取得）＋STEP3（±0.2%ルール・bp閾値によるスコア計算）＋STEP4（既存デザインのHTMLテンプレートへの自動埋め込み）＋STEP5（日本市場3指標の追加、参考情報・スコア対象外）までを実装済み**。AI分析・イベントカレンダー・GitHub Actions/Pagesは未実装（後続ステップ）。
+「日本株モーニング11」（claude.aiのartifactで手動運用中のレポート）と同じスコアリング思想・5指標構成を、GitHub Actionsで毎朝自動実行するための土台。**現時点ではSTEP2（海外5指標の自動取得）＋STEP3（±0.2%ルール・bp閾値によるスコア計算）＋STEP4（既存デザインのHTMLテンプレートへの自動埋め込み）＋STEP5（日本市場3指標の追加、参考情報・スコア対象外）＋STEP6（今週の重要イベントの自動取得、参考情報・スコア対象外）までを実装済み**。AI分析・ニュース取得・GitHub Actions/Pagesは未実装（後続ステップ）。
+
+## STEP6: 今週の重要イベントカレンダーの自動化
+
+**総合スコアには一切関与しない。** イベントの事実データ（日付・時刻・国・イベント名・重要度）の取得・JST変換・期間フィルタだけを行い、「このイベントが日本株にどう影響するか」の解釈はしない（AIは後続ステップで担当）。データ取得（`data/events.py`）→ main.py → HTML整形（`generator/html.py`）→ テンプレート埋め込み（`templates/morning11.html` の `{{EVENTS_TAG}}` `{{EVENTS_BLOCK}}`）という一方向の流れで、STEP2〜5と同じく取得と表示を分離している。
+
+### 採用したイベントデータソース
+
+| 対象 | ソース | 無料/有料 | APIキー | 自動取得の実態 |
+|---|---|---|---|---|
+| 米CPI・雇用統計(NFP)・GDP・小売売上高・PCE | **FRED公式API** `fred/release/dates`（release_id: CPI=10, 雇用統計=50, GDP=53, 小売売上高=9, PCE=54） | 無料 | 要（`FRED_API_KEY`、既存のUS10Y取得と共用） | **実際に毎回HTTPで取得**。発表日一覧を取得しJST窓でフィルタ |
+| FOMC・日銀会合・日本GDP・日本CPI・鉱工業生産・中国PMI/GDP | `config/events_calendar.json`（手動メンテナンスの静的データ） | ― | 不要 | **自動取得ではない**。実在する公式発表予定（FRB・日銀サイト等で確認した日時）を人手で登録した固定データ。下記「調査したが採用しなかった候補」参照 |
+
+**時刻の扱い**：FRED自体は発表「日付」のみを返し、時刻は含まれない。CPI・雇用統計・GDP・小売売上高・PCEはいずれも米労働省(BLS)・商務省(BEA)が**慣行的に8:30 ET（米東部時間）に公表する**という広く知られた運用上の規則性があるため、`release_time_et: "08:30"`として設定ファイルに明記し、そこからJSTへ変換している（FRED APIが返す実測値ではなく、公表側の慣行に基づく前提である旨をコードとREADMEの両方に明記）。
+
+### 調査したが採用しなかった候補（README記録・STEP6では未実装）
+
+ユーザー指示どおり、無理にスクレイピングは実装せず、候補と判断理由を記録する。
+
+| 候補 | 利用条件 | APIキー | 無料枠 | 安定性の所見 | JST変換可否 | 採用しなかった理由 |
+|---|---|---|---|---|---|---|
+| FRB公式サイト（FOMCカレンダーページ） | 無料 | 不要 | ― | 単純なHTML表だが構文が変わるとスクレイピングが壊れる | 可（ET→JST） | 静的HTMLの構造解析が必要で、STEP6の一機能としては複雑・不安定と判断。静的カレンダーで代替 |
+| 日本銀行公式サイト（金融政策決定会合日程） | 無料 | 不要 | ― | 同上（日本語HTML、年に数回改版される可能性） | 不要（元からJST） | 同上 |
+| 日本 内閣府・総務省統計局の「公表予定」ページ | 無料 | 不要 | ― | HTMLカレンダー形式で機械可読性が低い | 不要 | 同上 |
+| 中国国家統計局（NBS）発表予定 | 無料 | 不要 | ― | 中国語HTML、確認手段が乏しい | 要（CST→JST、時差1時間） | 情報源の安定した機械可読フォーマットを確認できず |
+| Finnhub Economic Calendar API | 要登録 | 要 | 無料枠は限定的（有料プラン専用の可能性が高い） | 未検証 | 要 | STEP1(GitHub Actions計画時)の下調べで無料枠の対象外である可能性が高いと判断し優先度を下げた |
+| Trading Economics API | 要契約 | 要 | 実質無料枠なし | ― | ― | 有料が前提のため不採用 |
+
+これらは「取得できないイベントを推測で埋める」代わりに、**実在する公式発表予定を静的データとして登録**する形で対応した（`config/events_calendar.json`）。将来的に安定した無料APIが見つかれば置き換え可能なよう、`data/events.py`の`load_static_calendar()`と`fetch_fred_events()`は独立した関数にしている。
+
+### データ構造
+
+```python
+{
+    "date": "2026-09-17",       # JST基準の日付
+    "time": "03:00",             # JST基準の時刻（不明な場合はNone）
+    "country": "US",
+    "event": "FOMC声明発表・経済見通し(SEP)公表",
+    "importance": "high",        # high/medium/low
+    "source": "FRB",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+    "actual": None,               # STEP6では未実装（結果値の取得は行わない）
+    "forecast": None,
+    "previous": None,
+}
+```
+
+### JST変換・日付またぎの確認
+
+`_to_jst(date, time, tz_name)` で変換する。`tz_name`が`None`の場合（日本側の静的データ）はそのままJSTとして扱い、指定がある場合（米国データ）はタイムゾーン変換する。
+
+- 8:30 ET（米国データ、EDT=UTC-4）→ 21:30 JST **同日**（`tests/test_events.py::test_to_jst_same_day_for_morning_et_release`で確認）
+- 14:00 ET（FOMC声明、EDT=UTC-4）→ **翌日** 03:00 JST（日付が繰り上がる。`test_to_jst_crosses_midnight_for_afternoon_et_release`で確認。実際に`config/events_calendar.json`の2026-09-16 14:00 ETのFOMC声明エントリが2026-09-17 03:00 JSTとして表示されることを確認済み）
+
+### 表示対象・重要度フィルタ・0件/失敗時の挙動
+
+- `config/settings.json`の`events.days_ahead`（デフォルト7）で「本日〜今後N日」を窓として抽出。窓外（過去・先すぎる未来）は表示しない
+- `events.importance_filter`（デフォルト`["high"]`）で重要度フィルタ。空リストにすれば全件表示に変更可能
+- **イベントが0件の場合**：「直近N日以内に登録されている重要イベントはありません」と明示し、架空のイベントは生成しない
+- **取得が完全に失敗した場合**（例：`FRED_API_KEY`未設定）：「イベントデータ取得不可（エラー内容）」と明示する
+- **一部だけ失敗した場合**（例：静的カレンダーは成功したがFRED側が失敗）：取得できたイベントはそのまま表示し、末尾に「一部のイベントソースが取得できませんでした（エラー内容）」を追加する。実際に`FRED_API_KEY`未設定の状態で`python main.py --generate`を実行し、この表示になることを確認済み
+
+### テスト（`tests/test_events.py` `tests/test_generator.py`、`python -m pytest` で65件全て合格確認済み）
+- JST変換（同日/日付またぎ/タイムゾーンなしパススルー/時刻不明）
+- FREDの発表日取得とJST変換・期間フィルタ、APIキー未設定時のエラー明示、一部リリース失敗時に他が巻き込まれないこと
+- 静的カレンダーの期間フィルタ・JST変換・ファイル欠損時のエラー明示
+- 重要度フィルタ（`importance_filter`）の適用
+- 今後7日以内のみ抽出され、過去・先すぎる未来のイベントが出ないこと
+- HTMLへのイベント挿入、0件時・取得失敗時の明示的な表示（架空のイベントを生成しないこと）
+- イベントの有無や内容が海外5指標の総合スコアに一切影響しないこと
+
+### 今後の改善候補
+- FOMC・日銀・日本GDP等の静的カレンダーは手動メンテナンスが必要（次回開催日を都度追記する運用）。安定した無料の公式APIが見つかれば自動取得に置き換え可能な設計にしてある
+- ISM製造業/サービス業PMI、PPI、ミシガン大学消費者信頼感、中国PMI/GDPはSTEP6では未着手（FREDのrelease_idが確認できたもの＝CPI/NFP/GDP/小売売上高/PCEのみ自動化）
+- 予想値(forecast)・結果値(actual)の取得はSTEP6の対象外（データ構造上はフィールドを用意済み）
 
 ## データ構造：海外5指標と日本3指標を明確に分離（STEP5）
 
@@ -124,18 +198,19 @@ STEP2で`^TOPX`・`^TPX`が取得不可（データなし）と確認済みの�
 python -m venv .venv
 source .venv/Scripts/activate   # Windows Git Bash
 pip install -r requirements.txt
-export FRED_API_KEY=xxxxx        # https://fredaccount.stlouisfed.org/apikeys で無料発行
-python main.py --test            # データ取得＋スコア計算をログ出力（海外5指標＋日本3指標の両方）
+export FRED_API_KEY=xxxxx        # https://fredaccount.stlouisfed.org/apikeys で無料発行（米10年債・米国イベントカレンダー両方で共用）
+python main.py --test            # データ取得＋スコア計算＋イベント取得をログ出力
 python main.py --generate        # 上記に加え output/ にHTMLを生成
-python -m pytest                 # STEP2〜5のテスト（49件）
+python -m pytest                 # STEP2〜6のテスト（65件）
 ```
 
 ## ファイル構成（現状）
 ```
 morning11/
-├── main.py              # --test / --generate（STEP2+3+4+5）
+├── main.py              # --test / --generate（STEP2+3+4+5+6）
 ├── data/
-│   └── market.py         # 海外5指標＋日本3指標の取得（責務：取得のみ）。overseas/japanを分離して返す
+│   ├── market.py         # 海外5指標＋日本3指標の取得（責務：取得のみ）。overseas/japanを分離して返す
+│   └── events.py          # 今週の重要イベントの取得（FRED公式API＋静的カレンダー）・JST変換・期間フィルタ
 ├── analysis/
 │   └── score.py           # ±0.2%ルール・bp閾値によるスコア計算（責務：判定のみ、ネットワーク非依存、overseas側のみ受け取る）
 ├── generator/
@@ -146,9 +221,11 @@ morning11/
 ├── tests/
 │   ├── test_market.py      # USD/JPY・日経225先物がスナップショット基準であること、MOF CSVパースの確認
 │   ├── test_score.py        # スコア境界値・欠損時の挙動の確認
-│   └── test_generator.py     # HTML生成・日付/8指標/欠損表示/未実装表示/整形/日本側スコア非影響の確認
+│   ├── test_events.py        # JST変換・日付またぎ・期間/重要度フィルタ・取得失敗時の挙動の確認
+│   └── test_generator.py      # HTML生成・日付/8指標/イベント表示/欠損表示/未実装表示/整形/スコア非影響の確認
 ├── config/
-│   └── settings.json      # データソース定義（overseas/japan分離）・スコア閾値
+│   ├── settings.json      # データソース定義（overseas/japan分離）・スコア閾値・イベント設定（fred_releases等）
+│   └── events_calendar.json # FOMC・日銀等の手動メンテナンス静的カレンダー（STEP6参照）
 ├── requirements.txt
 └── README.md
 ```
@@ -156,11 +233,10 @@ morning11/
 
 ## GitHub Secretsに保存する予定の値（コードには絶対に書かない）
 - `ANTHROPIC_API_KEY`（AI分析、STEP8で使用）
-- `FRED_API_KEY`（米10年債データ、STEP2/3で使用。未設定でもyfinanceにフォールバックして動作する）
-- 日本市場3指標（NKD=F・1306.T・財務省CSV）は追加のAPIキー不要
+- `FRED_API_KEY`（米10年債データ・米国イベントカレンダーの両方で使用。未設定でも米10年債はyfinanceにフォールバックし、イベント側は「取得不可」と明示した上で他のイベントソースは動作を継続する）
+- 日本市場3指標（NKD=F・1306.T・財務省CSV）・日本側イベントカレンダーは追加のAPIキー不要
 
 ## 未実装（後続ステップ）
-- STEP6: イベントカレンダーの自動取得
 - STEP7: ニュース取得
 - STEP8: AI分析（見出し・組み合わせ分析・セクター分析・リスク）の実装
 - STEP9: GitHub Actionsでの毎朝自動実行・GitHub Pages公開

@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from analysis.score import compute_score
+from data.events import EventRecord
 from data.market import MetricResult
 from generator.html import generate_report
 
 SETTINGS = {"score_threshold_percent": 0.2, "bond_yield_threshold_bp": 3}
 JST = ZoneInfo("Asia/Tokyo")
+
+
+def _empty_events_out(now: datetime) -> dict:
+    return {
+        "events": [],
+        "errors": [],
+        "window_start": now.date().isoformat(),
+        "window_end": (now.date() + timedelta(days=7)).isoformat(),
+    }
 
 
 def _ok(key, label, *, change_percent=None, change_bp=None, value=100.0, timestamp="2026-09-04", source=None):
@@ -59,10 +69,11 @@ def _all_ok_results():
     return {"overseas": _all_ok_overseas(), "japan": _all_ok_japan()}
 
 
-def _generate(tmp_path, results, now=None):
+def _generate(tmp_path, results, now=None, events_out=None):
     now = now or datetime(2026, 9, 4, 7, 0, tzinfo=JST)  # 平日固定（テストの再現性のため）
+    events_out = events_out if events_out is not None else _empty_events_out(now)
     score_out = compute_score(results["overseas"], SETTINGS)
-    path = generate_report(results, score_out, SETTINGS, output_dir=tmp_path, now=now)
+    path = generate_report(results, score_out, SETTINGS, events_out, output_dir=tmp_path, now=now)
     return path, score_out
 
 
@@ -193,3 +204,66 @@ def test_japan_indicator_failure_does_not_change_overseas_score(tmp_path):
     assert score_out["total"] == 5
     assert score_out["provisional"] is False
     assert "CME snapshot missing" in html
+
+
+# --- STEP6: 今週の重要イベント ------------------------------------------
+
+def _events_out_with(now: datetime, events: list[EventRecord], errors: list[str] | None = None) -> dict:
+    return {
+        "events": events,
+        "errors": errors or [],
+        "window_start": now.date().isoformat(),
+        "window_end": (now.date() + timedelta(days=7)).isoformat(),
+    }
+
+
+def test_events_appear_in_html(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    events = [
+        EventRecord(
+            date="2026-09-08", time="08:50", country="JP", event="GDP 2次速報（4-6月期）",
+            importance="high", source="内閣府", source_url="https://example.com",
+        ),
+        EventRecord(
+            date="2026-09-05", time="21:30", country="US", event="米CPI",
+            importance="high", source="FRED", source_url="https://fred.stlouisfed.org/release?rid=10",
+        ),
+    ]
+    results = _all_ok_results()
+    path, _ = _generate(tmp_path, results, now=now, events_out=_events_out_with(now, events))
+    html = path.read_text(encoding="utf-8")
+    assert "GDP 2次速報（4-6月期）" in html
+    assert "米CPI" in html
+    assert "09/08" in html and "09/05" in html
+    assert "08:50" in html and "21:30" in html
+
+
+def test_no_events_shows_explicit_no_fabrication_message_not_fake_event(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    results = _all_ok_results()
+    path, _ = _generate(tmp_path, results, now=now, events_out=_events_out_with(now, []))
+    html = path.read_text(encoding="utf-8")
+    assert "重要イベントはありません" in html
+    assert "架空のイベントは表示していません" in html
+
+
+def test_events_fetch_failure_shows_explicit_message_not_fabricated(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    results = _all_ok_results()
+    events_out = _events_out_with(now, [], errors=["FRED_API_KEY not set: ..."])
+    path, _ = _generate(tmp_path, results, now=now, events_out=events_out)
+    html = path.read_text(encoding="utf-8")
+    assert "イベントデータ取得不可" in html
+    assert "FRED_API_KEY not set" in html
+
+
+def test_events_do_not_affect_overseas_score(tmp_path):
+    now = datetime(2026, 9, 4, 7, 0, tzinfo=JST)
+    results = _all_ok_results()
+    events = [
+        EventRecord(date="2026-09-08", time=None, country="JP", event="テストイベント",
+                    importance="high", source="test")
+    ]
+    _, score_out_with_events = _generate(tmp_path, results, now=now, events_out=_events_out_with(now, events))
+    _, score_out_without_events = _generate(tmp_path, results, now=now, events_out=_events_out_with(now, []))
+    assert score_out_with_events == score_out_without_events

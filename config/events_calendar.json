@@ -1,0 +1,72 @@
+[
+  {
+    "date": "2026-09-08",
+    "time": "08:50",
+    "tz": null,
+    "country": "JP",
+    "event": "GDP 2次速報（4-6月期）",
+    "importance": "high",
+    "source": "内閣府",
+    "source_url": "https://www.esri.cao.go.jp/jp/sna/menu.html"
+  },
+  {
+    "date": "2026-09-15",
+    "time": null,
+    "tz": null,
+    "country": "US",
+    "event": "FOMC（会合1日目）",
+    "importance": "high",
+    "source": "FRB",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+  },
+  {
+    "date": "2026-09-16",
+    "time": "14:00",
+    "tz": "America/New_York",
+    "country": "US",
+    "event": "FOMC声明発表・経済見通し(SEP)公表",
+    "importance": "high",
+    "source": "FRB",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+  },
+  {
+    "date": "2026-09-16",
+    "time": "14:30",
+    "tz": "America/New_York",
+    "country": "US",
+    "event": "パウエルFRB議長 記者会見",
+    "importance": "high",
+    "source": "FRB",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+  },
+  {
+    "date": "2026-09-17",
+    "time": null,
+    "tz": null,
+    "country": "JP",
+    "event": "日銀金融政策決定会合（初日）",
+    "importance": "high",
+    "source": "日本銀行",
+    "source_url": "https://www.boj.or.jp/about/calendar/index.htm"
+  },
+  {
+    "date": "2026-09-18",
+    "time": "11:30",
+    "tz": null,
+    "country": "JP",
+    "event": "日銀金融政策決定会合 結果公表",
+    "importance": "high",
+    "source": "日本銀行",
+    "source_url": "https://www.boj.or.jp/about/calendar/index.htm"
+  },
+  {
+    "date": "2026-09-18",
+    "time": "15:30",
+    "tz": null,
+    "country": "JP",
+    "event": "植田日銀総裁 記者会見",
+    "importance": "high",
+    "source": "日本銀行",
+    "source_url": "https://www.boj.or.jp/about/calendar/index.htm"
+  }
+]

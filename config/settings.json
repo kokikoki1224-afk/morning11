@@ -62,5 +62,17 @@
       "fallback": null,
       "_note": "財務省公式CSV(国債金利情報)を使用。無料・公式・キー不要。10年債列(基準日の次から10番目の値)を抽出"
     }
+  },
+  "events": {
+    "days_ahead": 7,
+    "importance_filter": ["high"],
+    "_note": "STEP6: 米国主要指標はFRED公式APIの release/dates で自動取得。FOMC・日銀・日本GDP等はSTEP6時点で安定した無料APIが見つからず、config/events_calendar.json の手動メンテナンス静的データを使用(README参照)。取得できないイベントは推測で埋めない",
+    "fred_releases": {
+      "米CPI": {"release_id": 10, "country": "US", "importance": "high", "release_time_et": "08:30"},
+      "米雇用統計(NFP)": {"release_id": 50, "country": "US", "importance": "high", "release_time_et": "08:30"},
+      "米GDP": {"release_id": 53, "country": "US", "importance": "high", "release_time_et": "08:30"},
+      "米小売売上高": {"release_id": 9, "country": "US", "importance": "medium", "release_time_et": "08:30"},
+      "米PCE": {"release_id": 54, "country": "US", "importance": "high", "release_time_et": "08:30"}
+    }
   }
 }
