@@ -1,0 +1,34 @@
+{
+  "score_threshold_percent": 0.2,
+  "bond_yield_threshold_bp": 3,
+  "sources": {
+    "nasdaq": {
+      "label": "Nasdaq総合",
+      "primary": {"provider": "yfinance", "symbol": "^IXIC"},
+      "fallback": null,
+      "_note": "StooqはJS bot対策チャレンジ導入によりSTEP2実装時点(2026-09)で機械的取得不可と判明したため不採用"
+    },
+    "sox": {
+      "label": "SOX（フィラデルフィア半導体指数）",
+      "primary": {"provider": "yfinance", "symbol": "^SOX"},
+      "fallback": null
+    },
+    "us10y": {
+      "label": "米10年債利回り",
+      "primary": {"provider": "fred", "series_id": "DGS10"},
+      "fallback": {"provider": "yfinance", "symbol": "^TNX"},
+      "_note": "yfinanceの^TNXは実測値そのもの(例 4.79)を返す。10倍表記(旧CBOE慣行)ではないため divide_by は使わない"
+    },
+    "usdjpy": {
+      "label": "ドル円",
+      "primary": {"provider": "yfinance_ny17", "symbol": "JPY=X"},
+      "fallback": null,
+      "_note": "日足(interval=1d)は24時間連続取引ゆえに集計区間がずれ前日比の符号が逆転する不具合を確認したため不採用。時間足からNY17時(米東部時間)のスナップショットを抽出する方式に変更(README参照)"
+    },
+    "kospi": {
+      "label": "KOSPI",
+      "primary": {"provider": "yfinance", "symbol": "^KS11"},
+      "fallback": null
+    }
+  }
+}
